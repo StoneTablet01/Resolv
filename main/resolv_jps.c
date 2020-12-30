@@ -52,6 +52,10 @@
  * Once a hostname has been resolved (or found to be non-existent),
  * the resolver code calls a specified callback function (which
  * must be implemented by the module that uses the resolver).
+ *
+ * Jim Sutton made the code work on the ESP32 chip
+
+
 
  */
 
