@@ -55,6 +55,7 @@
  *
  * Jim Sutton made the code work on the ESP32 chip. Big Problem
  * was how IP addresses were stored
+ * Nest step continued cleanup
 
 
 
