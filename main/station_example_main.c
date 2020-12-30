@@ -81,7 +81,6 @@ void wifi_init_sta(void)
     s_wifi_event_group = xEventGroupCreate();
 
     ESP_ERROR_CHECK(esp_netif_init());
-
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     // JPS Create two pointers that we will use to get information
@@ -155,24 +154,24 @@ void wifi_init_sta(void)
     // calls. I also used the netif test program which is located in the
     // components/esp_netif/test directory to resolve a problem i had with
     // the get_hostname fnction. In any case, First see if netif is up
-
-    ESP_LOGI(TAG, "***Information on the connection***");
+    ESP_LOGI(TAG, "\n");
+    ESP_LOGI(TAG, ".Information on Netif connection");
     if (esp_netif_is_netif_up(esp_netif_handle)){
-      ESP_LOGI(TAG, "JPS says netif is up");
+      ESP_LOGI(TAG, "...Netif is running");
     }
     else {
-      ESP_LOGI(TAG, "JPS says netif is down");
+      ESP_LOGI(TAG, "...Netif is not running");
     }
     // get ip information
     ESP_ERROR_CHECK(esp_netif_get_ip_info(esp_netif_handle, &ap_info));
-    ESP_LOGI(TAG, "Current IP from netif      : "IPSTR"", IP2STR(&ap_info.ip));
-    ESP_LOGI(TAG, "Current netmask from netif : "IPSTR"", IP2STR(&ap_info.netmask));
-    ESP_LOGI(TAG, "Current gateway from netif : "IPSTR"", IP2STR(&ap_info.gw));
+    ESP_LOGI(TAG, "...Current IP from netif      : "IPSTR"", IP2STR(&ap_info.ip));
+    ESP_LOGI(TAG, "...Current netmask from netif : "IPSTR"", IP2STR(&ap_info.netmask));
+    ESP_LOGI(TAG, "...Current gateway from netif : "IPSTR"", IP2STR(&ap_info.gw));
 
     //get hostname information
     const char *hostname = NULL;
     ESP_ERROR_CHECK(esp_netif_get_hostname(esp_netif_handle, &hostname));
-    ESP_LOGI(TAG, "Current Hostname from netif: %s", hostname);
+    ESP_LOGI(TAG, "...Current Hostname from netif: %s", hostname);
 
     //get information on the DNS connections
 
@@ -184,28 +183,30 @@ void wifi_init_sta(void)
 
     //Get all connections, but save the primary as an ip_addr unint_32
 
-    struct ip4_addr *dnsserver, my_server, my_ip;
-    dnsserver = &my_server;
+    struct ip4_addr my_server, my_ip;
+    //struct ip4_addr *dnsserver, my_server, my_ip;
+    //dnsserver = &my_server;
 
     esp_netif_get_dns_info(esp_netif_handle, ask_for_primary, &dns_info);
-    ESP_LOGI(TAG, "Name Server Primary: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+    ESP_LOGI(TAG, "...Name Server Primary (netif): " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
 
     my_server.addr = dns_info.ip.u_addr.ip4.addr;
 
     esp_netif_get_dns_info(esp_netif_handle, ask_for_secondary, &dns_info);
-    ESP_LOGI(TAG, "Name Server Secondary: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+    ESP_LOGI(TAG, "...Name Server Sec (netif)    : " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
 
     esp_netif_get_dns_info(esp_netif_handle, ask_for_fallback, &dns_info);
-    ESP_LOGI(TAG, "Name Server Fallback: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+    ESP_LOGI(TAG, "...Name Serv Fallback (netif) : " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
 
     esp_netif_get_dns_info(esp_netif_handle, ask_for_dns_max, &dns_info);
-    ESP_LOGI(TAG, "Name Server DNS Max: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+    ESP_LOGI(TAG, "...Name Server DNS Max        : " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
 
     //dnsserver = dns_info.ip.u_addr.ip4;
-    ESP_LOGI(TAG, "...dnsserver to use for resolver is: " IPSTR, IP2STR(&my_server));
-    ESP_LOGI(TAG, "...dnsserver to use for resolver is: " IPSTR, IP2STR(dnsserver));
+    //ESP_LOGI(TAG, "...dnsserver to use for resolver is: " IPSTR, IP2STR(&my_server));
+    //ESP_LOGI(TAG, "...dnsserver to use for resolver is: " IPSTR, IP2STR(dnsserver));
 
     // JPS see if I can get the resolver to work
+
 
     err_t ret;
 
@@ -214,56 +215,85 @@ void wifi_init_sta(void)
     dnsserver_ip_addr_ptr->type = IPADDR_TYPE_V4;
     dnsserver_ip_addr_ptr->u_addr.ip4.addr = my_server.addr;
 
+    /*
+    //examples of using the unified ip_addr_t in printing.
+    //first print a ip4_addr, then print the ip_addr_t with . then
+    //print using pointer. Note IP2STR expects the address of an ip4_addr struct
     ESP_LOGI(TAG, "Name Server dnsserver_ip_addr: " IPSTR, IP2STR(&my_server));
     ESP_LOGI(TAG, "Name Server dnsserver_ip_addr: " IPSTR, IP2STR(&dnsserver_ip_addr.u_addr.ip4));
     ESP_LOGI(TAG, "Name Server dnsserver_ip_addr: " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
-
+    */
+    ESP_LOGI(TAG, "\n");
+    ESP_LOGI(TAG, ".Initialize the Resolver");
     ret = resolv_init(dnsserver_ip_addr_ptr);
     if (ret < 0 ){
       ESP_LOGI(TAG, "... Error initializing resolver " );
+    }
+    ESP_LOGI(TAG, "...Returned from Relover Init");
+
+    //The user can check if the DNS server was configured.
+    if (resolv_getserver() != 0){
+      my_ip.addr = resolv_getserver();
+      ESP_LOGI(TAG, "...DNS server from resolv_getserver is: " IPSTR, IP2STR(&my_ip));
+    }
+    else{
+      ESP_LOGI(TAG, "...DNS server from resolv_getserver not found");
     }
 
     struct hostent *hp;
     struct ip4_addr *ip4_addr;
 
-    //char full_URL[] = "xmpp.dismail.de";
     char full_URL[] = "xmpp.dismail.de";
+
+    // The user can check if the name is in the table with resolv_lookup
+    // expect dnslookup to be not found as resolv query has not yet been called
+    my_ip.addr = resolv_lookup(full_URL);
+    if (resolv_lookup(full_URL) != 0){
+      ESP_LOGI(TAG, "...IP address from resolv_lookup is: " IPSTR, IP2STR(&my_ip));
+    }
+    else{
+      ESP_LOGI(TAG, "...IP address from resolv_lookup not found");
+    }
+
+
+
 
     // experimenting with callbacks
     // first directly call the callback as a typical function
     // Then create a pointer to the user callback function
 
+    //jps_cb is a callback function intended to be called when an ip address
+    // is found. it can be called directly from
+    // jps_cb(full_URL, &my_server);
 
-    jps_cb(full_URL, &my_server);
     user_cb_fn jps_cb_ptr = &jps_cb;
 
     // resolv query creates an entry in a DNS table with the name and callback
     // when the information is found. Resolv_query only enters the information in
     // the table. he table is updated by check entries.
+    ESP_LOGI(TAG, "\n");
+    ESP_LOGI(TAG, ".Begin Resolv Query");
     resolv_query(full_URL, jps_cb_ptr);
 
-    // The user can check if the name is in the table with resolv_lookup
+    ESP_LOGI(TAG, "\n");
+    ESP_LOGI(TAG, ".Begin Check Entries");
+    // check if dns table needs update
+    check_entries();
+
+    ESP_LOGI(TAG, ".Begin Wait");
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    
+    ESP_LOGI(TAG, "\n");
+    ESP_LOGI(TAG, ".END Wait");
+    ESP_LOGI(TAG, "...Check for ip address from table");
+
     my_ip.addr = resolv_lookup(full_URL);
     if (resolv_lookup(full_URL) != 0){
-      ESP_LOGI(TAG, "IP address from resolv_lookup is: " IPSTR, IP2STR(&my_ip));
+      ESP_LOGI(TAG, "...IP address from resolv_lookup is: " IPSTR, IP2STR(&my_ip));
     }
     else{
-      ESP_LOGI(TAG, "IP address from resolv_lookup not found");
+      ESP_LOGI(TAG, "...IP address from resolv_lookup not found");
     }
-
-    //The user can check if the DNS server was configured.
-
-    if (resolv_getserver() != 0){
-      my_ip.addr = resolv_getserver();
-      ESP_LOGI(TAG, "DNS server from resolv_getserver is: " IPSTR, IP2STR(&my_ip));
-    }
-    else{
-      ESP_LOGI(TAG, "DNS server from resolv_getserver not found");
-    }
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-    // check if queries need to be made
-    check_entries();
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     hp = gethostbyname(full_URL);
 

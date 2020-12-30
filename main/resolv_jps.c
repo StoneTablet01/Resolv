@@ -305,8 +305,8 @@ four_char_to_u32_t(char *char_ptr){
 void
 check_entries(void)
 {
-  static const char *TAG = "check_entries";
-  ESP_LOGI(TAG, "...entered check entries" );
+  static const char *TAG = "chck_entries";
+  ESP_LOGI(TAG, "...begin check entries" );
 
   register DNS_HDR *hdr;
   char *pHostname;
@@ -616,13 +616,13 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   int num_answers = h.numanswers;
   while (num_answers > 0){
     /* check if answer has a name pointer */
-    ESP_LOGI(TAG, "... Checking for name ptr: %X", *jps_char_ptr);
+    //ESP_LOGI(TAG, "... Checking for name ptr: %X", *jps_char_ptr);
     if (*jps_char_ptr >= 0xC0){
-      ESP_LOGI(TAG, "... Name is a pointer: %X", *jps_char_ptr);
+      //ESP_LOGI(TAG, "... Name is a pointer: %X", *jps_char_ptr);
 
     // record whether there is a pointer to address.
       r_ans.ans_has_pointer = 0x0001;
-      ESP_LOGI(TAG, "... ans_has_ptr is: %d", r_ans.ans_has_pointer);
+      //ESP_LOGI(TAG, "... ans_has_ptr is: %d", r_ans.ans_has_pointer);
 
       r_ans.ans_pointer = (u16_t) *jps_char_ptr;
 
@@ -636,13 +636,13 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
     // the type of the query.  0x0001 represents "A" records (host addresses).
     // 0x000f for mail server (MX) records and 0x0002 for name servers (NS) records.
     r_ans.type = two_char_to_u16_t(jps_char_ptr);
-    ESP_LOGI(TAG, "... r_ans.type is: %d", r_ans.type);
+    //ESP_LOGI(TAG, "...Answer type is              : %d", r_ans.type);
     jps_char_ptr += 2;
 
     // Parse Answer Class - Two octets (16 bits) which specify the class of data
     // in the RDATA field. Class 0x0001 is IN internet.
     r_ans.class = two_char_to_u16_t(jps_char_ptr);
-    ESP_LOGI(TAG, "... r_ans.class is: %d", r_ans.class);
+    //ESP_LOGI(TAG, "...Answer class is             : %d", r_ans.class);
     jps_char_ptr += 2;
 
     // Parse TTL. TTL is the number of seconds the results can be considered valid.
@@ -771,23 +771,21 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
 // pointed to by jps_cb_ptr
 
   static const char *TAG = "resolv_query";
-  ESP_LOGI(TAG, "...entered resolv query. The name is %s", name );
+  //ESP_LOGI(TAG, "...entered resolv query. The name is %s", name );
   struct ip4_addr jps_addr;
 
 
 // test the callback function passed as an argument
-  (*jps_cb_ptr) (name, &jps_addr);
-//  return;
+//  (*jps_cb_ptr) (name, &jps_addr);
 
 // now build the table as envisioned by Adam Dunkels
-
 static u8_t i;
 static u8_t lseqi;
 register DNS_TABLE_ENTRY *pEntry;
 
 lseqi = 0;
 
-ESP_LOGI(TAG, "...ready to build table The name is %s", name );
+ESP_LOGI(TAG, "...build entry for             : %s", name );
 
 //JPS Code to enter info into the table
 for (i = 0; i < LWIP_RESOLV_ENTRIES; ++i){
@@ -806,11 +804,12 @@ for (i = 0; i < LWIP_RESOLV_ENTRIES; ++i){
   }
 }
 pEntry = &dns_table[lseqi];
-ESP_LOGI(TAG, "...Created record at sequence number:  %d", lseqi );
-ESP_LOGI(TAG, "...Record name is:                     %s", pEntry->name );
-ESP_LOGI(TAG, "...Record state is:                    %d", (int) pEntry->state );
-ESP_LOGI(TAG, "...Record callback pointer is:         %p", pEntry->found );
-ESP_LOGI(TAG, "...Record IP address: " IPSTR, IP2STR(&pEntry->ipaddr));
+
+ESP_LOGI(TAG, "...Created record at seq no    : %d", lseqi );
+ESP_LOGI(TAG, "...Record name is              : %s", pEntry->name );
+ESP_LOGI(TAG, "...Record state is             : %d", (int) pEntry->state );
+//ESP_LOGI(TAG, "...Record callback pointer is:         %p", pEntry->found );
+ESP_LOGI(TAG, "...Record IP address           : " IPSTR, IP2STR(&pEntry->ipaddr));
 
 
 seqno = lseqi + 1;
@@ -865,8 +864,9 @@ resolv_init(ip_addr_t *dnsserver_ip_addr_ptr)
 {
   // dnsserver_ip_addr is of type ip_addr_t which supports both IPv4 and IPPROTO_IPV6
   //
-  static const char *TAG = "resolv init";
-  ESP_LOGI(TAG, "...dnsserver passed to init is: " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
+  static const char *TAG = "resolv init ";
+
+  ESP_LOGI(TAG, "...dnsserver is                : " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
 
   static u8_t i;
 
@@ -890,10 +890,11 @@ resolv_init(ip_addr_t *dnsserver_ip_addr_ptr)
   err_t ret;
   ret = udp_connect(resolv_pcb, dnsserver_ip_addr_ptr, DNS_SERVER_PORT);
   if (ret < 0 ){
-    ESP_LOGI(TAG, "...udp connect failed resolver is: " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
+
+    ESP_LOGI(TAG, "...udp connect failed to       : " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
   }
   else{
-    ESP_LOGI(TAG, "...udp connect succeeded resolver is: " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
+    ESP_LOGI(TAG, "...udp connected to            : " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
   }
   /*
 
