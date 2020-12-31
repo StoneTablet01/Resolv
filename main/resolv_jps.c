@@ -351,10 +351,10 @@ check_entries(void)
       p = pbuf_alloc(PBUF_TRANSPORT, sizeof(DNS_HDR)+MAX_NAME_LENGTH+5, PBUF_RAM);
       hdr = (DNS_HDR *)p->payload;
       memset(hdr, 0, sizeof(DNS_HDR));
-      hdr->id = htons(i);
-      //ESP_LOGI(TAG, "...id assigned i = %X id = %X", i, hdr->id );
 
-      hdr->flags1 = DNS_FLAG1_RD;
+      /* Fill in header information observing Big Endian / Little Endian considerations*/
+      hdr->id = htons(i);
+      hdr->flags1 = DNS_FLAG1_RD; //This is 8bits so no need to worry about htons
       hdr->numquestions = htons(1);
       query = (char *)hdr + sizeof(DNS_HDR);
       pHostname = pEntry->name;
@@ -380,18 +380,13 @@ check_entries(void)
       while(*pHostname != 0);
 
       static unsigned char endquery[] = {0,0,1,0,1};
+      // write a trailing 0 on qname and write q_type and q_class
+      // order is MSB, LSB (network)
       memcpy(query, endquery, 5);
 
-      nptr = (char *)hdr + sizeof(DNS_HDR);
-      for (int j=0; j<21; j++){
-        ESP_LOGI(TAG, "......Dunkels Letter %X ", *nptr);
-        nptr++;
-      }
-
-      //print our payload
+      /* print our payload
       char * jps_char_ptr;
       jps_char_ptr = (char *) p->payload;
-
 
       for (i=0; i < qname_len + 12 + 5; ++i){
         if (*jps_char_ptr > 65){
@@ -401,124 +396,9 @@ check_entries(void)
           ESP_LOGI(TAG, "......%d Hex  in payload Array: %X", i, *jps_char_ptr);
         }
         jps_char_ptr++;
-      }
-
-
-
-
-      void * jps_payload_ptr;
-      jps_payload_ptr = p->payload;
-      memset(hdr, 0, sizeof(DNS_HDR));
-
-      unsigned char jps_header[12];
-      jps_header[0] = 0x00; /* ID of the request MSB*/
-      jps_header[1] = 0x00; /* ID of the request LSB*/
-      jps_header[2] = 0x01; /* Control word MSB */
-      jps_header[3] = 0x00; /* Control word LSB */
-      jps_header[4] = 0x00; /* QD Count MSB */
-      jps_header[5] = 0x01; /* QD Count LSB */
-      jps_header[6] = 0x00; /* ANCOUNT MSB*/
-      jps_header[7] = 0x00; /* ANCOUNT LSB*/
-      jps_header[8] = 0x00; /* NSCOUNT MSB */
-      jps_header[9] = 0x00; /* NSCOUNT LSB */
-      jps_header[10] = 0x00; /* ARCOUNT MSB */
-      jps_header[11] = 0x00; /* ARCOUNT LSB */
-
-
-      //unsigned char * jps_hdr_ptr;
-      //jps_hdr_ptr = &jps_header[0];
-      /*
-      for (i = 0; i < sizeof(DNS_HDR); ++i){
-        ESP_LOGI(TAG, "...JPS_Header item: %X %p ", *jps_hdr_ptr , jps_hdr_ptr);
-        jps_hdr_ptr++;
-      }  */
-
-      unsigned char jps_question[MAX_NAME_LENGTH];
-      unsigned char *jps_question_ptr;
-      jps_question_ptr = &jps_question[0];
-
-      memset(jps_question_ptr, 0, MAX_NAME_LENGTH);
-
-      int label_len = 0;
-      int loop_count = 0;
-
-      pHostname = pEntry->name;
-      unsigned char *jps_label_len_ptr, *jps_label_ptr;
-      jps_label_len_ptr = jps_question_ptr;
-      jps_label_ptr = jps_label_len_ptr + 1;
-
-      while (*pHostname !=0 && loop_count < MAX_NAME_LENGTH){
-        loop_count++;
-        if (*pHostname != '.'){
-          label_len++;
-          *jps_label_len_ptr = label_len;
-          *jps_label_ptr = *pHostname;
-          jps_label_ptr++;
-          pHostname++;
-        }
-        else{
-          jps_label_len_ptr = jps_label_ptr;
-          label_len = 0;
-          *jps_label_len_ptr = label_len;
-          jps_label_ptr++;
-          pHostname++;
-        }
-      }
-      // add the endqquerry instructions for type and class
-      //static unsigned char endquery[] = {0,0,1,0,1};
-      memcpy(jps_label_ptr, endquery, 5);
-
-      // loop_count has the total number of characters in the query
-      loop_count = loop_count + 6;
-      /*
-      ESP_LOGI(TAG, "...no of Char in JPS Question Array: %d", loop_count);
-
-      for (i=0; i < loop_count; ++i){
-        if (*jps_question_ptr > 10){
-          ESP_LOGI(TAG, "...Char in JPS Question Array: %c", *jps_question_ptr);
-        }
-        else{
-          ESP_LOGI(TAG, "...Char in JPS Question Array: %X", *jps_question_ptr);
-        }
-        jps_question_ptr++;
       } */
 
-      // now copy the header and query into the udp transports payload
-
-      memcpy(jps_payload_ptr, jps_header, 12);
-
-      jps_payload_ptr = jps_payload_ptr + 12;
-      memcpy(jps_payload_ptr, jps_question, loop_count);
-
-      jps_char_ptr = (char *) p->payload;
-      for (i=0; i < loop_count + 12; ++i){
-        if (*jps_char_ptr > 65){
-          ESP_LOGI(TAG, "......%d Char in payload Array: %c", i, *jps_char_ptr);
-        }
-        else{
-          ESP_LOGI(TAG, "......%d Hex  in payload Array: %X", i, *jps_char_ptr);
-        }
-        jps_char_ptr++;
-      }
-
-      //print our payload
-      //jps_payload_ptr = p->payload;
-      //char * jps_char_ptr;
-      //jps_char_ptr = (char *) p->payload;
-
-      /*
-      for (i=0; i < loop_count + 12; ++i){
-        if (*jps_char_ptr > 10){
-          ESP_LOGI(TAG, "......Char in payload Array: %c", *jps_char_ptr);
-        }
-        else{
-          ESP_LOGI(TAG, "......Hex  in payload Array: %X", *jps_char_ptr);
-        }
-        jps_char_ptr++;
-      }
-      */
-
-      pbuf_realloc(p, loop_count + 12);
+      pbuf_realloc(p, qname_len + 12 + 5);
 
       udp_send(resolv_pcb, p);
       ESP_LOGI(TAG, "...query sent to DNS server" );
