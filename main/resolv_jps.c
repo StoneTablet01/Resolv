@@ -55,6 +55,7 @@
  *
  * Jim Sutton made the code work on the ESP32 chip. Big Problem
  * was how IP addresses were stored
+ * Nest step continued cleanup
 
 
 
@@ -304,16 +305,16 @@ four_char_to_u32_t(char *char_ptr){
 void
 check_entries(void)
 {
-  static const char *TAG = "check_entries";
-  ESP_LOGI(TAG, "...entered check entries" );
+  static const char *TAG = "chck_entries";
+  ESP_LOGI(TAG, "...begin check entries" );
 
   register DNS_HDR *hdr;
-  char *pHostname;
-  //char *query, *pHostname; JPS removing query
-  static u8_t i;
-  //static u8_t n;
+  char *query, *nptr, *pHostname;
+  static u16_t i;
+  static u8_t n;
   register DNS_TABLE_ENTRY *pEntry;
   struct pbuf *p;
+
   for(i = 0; i < LWIP_RESOLV_ENTRIES; ++i)
   {
     pEntry = &dns_table[i];
@@ -347,123 +348,60 @@ check_entries(void)
         pEntry->retries = 0;
       }
       /* if here, we have either a new query or a retry on a previous query to process */
-      //ESP_LOGI(TAG, "...new query to process");
       p = pbuf_alloc(PBUF_TRANSPORT, sizeof(DNS_HDR)+MAX_NAME_LENGTH+5, PBUF_RAM);
-      //ESP_LOGI(TAG, "...pbuf pointer points to: %p", p);
       hdr = (DNS_HDR *)p->payload;
-      //ESP_LOGI(TAG, "...hdr pointer points to: %p", hdr);
-      void * jps_payload_ptr;
-      jps_payload_ptr = p->payload;
-      //ESP_LOGI(TAG, "...jps_payload_ptr points to: %p", jps_payload_ptr);
-
-      //ESP_LOGI(TAG, "...hdr pointer points to : %p", hdr);
-      //ESP_LOGI(TAG, "...DNS HDR size is       : %d", sizeof(DNS_HDR));
       memset(hdr, 0, sizeof(DNS_HDR));
 
-      hdr->id = i;
-      hdr->flags1 = DNS_FLAG1_RD;
-      hdr->numquestions = 1;
-
-      unsigned char jps_header[12];
-      jps_header[0] = 0x00; /* ID of the request MSB*/
-      jps_header[1] = 0x00; /* ID of the request LSB*/
-      jps_header[2] = 0x01; /* Control word MSB */
-      jps_header[3] = 0x00; /* Control word LSB */
-      jps_header[4] = 0x00; /* QD Count MSB */
-      jps_header[5] = 0x01; /* QD Count LSB */
-      jps_header[6] = 0x00; /* ANCOUNT MSB*/
-      jps_header[7] = 0x00; /* ANCOUNT LSB*/
-      jps_header[8] = 0x00; /* NSCOUNT MSB */
-      jps_header[9] = 0x00; /* NSCOUNT LSB */
-      jps_header[10] = 0x00; /* ARCOUNT MSB */
-      jps_header[11] = 0x00; /* ARCOUNT LSB */
-
-
-      //unsigned char * jps_hdr_ptr;
-      //jps_hdr_ptr = &jps_header[0];
-      /*
-      for (i = 0; i < sizeof(DNS_HDR); ++i){
-        ESP_LOGI(TAG, "...JPS_Header item: %X %p ", *jps_hdr_ptr , jps_hdr_ptr);
-        jps_hdr_ptr++;
-      }  */
-
-      unsigned char jps_question[MAX_NAME_LENGTH];
-      unsigned char *jps_question_ptr;
-      jps_question_ptr = &jps_question[0];
-
-      memset(jps_question_ptr, 0, MAX_NAME_LENGTH);
-
-      int label_len = 0;
-      int loop_count = 0;
-
+      /* Fill in header information observing Big Endian / Little Endian considerations*/
+      hdr->id = htons(i);
+      hdr->flags1 = DNS_FLAG1_RD; //This is 8bits so no need to worry about htons
+      hdr->numquestions = htons(1);
+      query = (char *)hdr + sizeof(DNS_HDR);
       pHostname = pEntry->name;
-      unsigned char *jps_label_len_ptr, *jps_label_ptr;
-      jps_label_len_ptr = jps_question_ptr;
-      jps_label_ptr = jps_label_len_ptr + 1;
+      --pHostname;
+      /* Convert hostname into suitable query format. */
 
-      while (*pHostname !=0 && loop_count < MAX_NAME_LENGTH){
-        loop_count++;
-        if (*pHostname != '.'){
-          label_len++;
-          *jps_label_len_ptr = label_len;
-          *jps_label_ptr = *pHostname;
-          jps_label_ptr++;
-          pHostname++;
+      int qname_len = 0;
+      do
+      {
+        ++pHostname;
+        nptr = query;
+        ++query;
+        for(n = 0; *pHostname != '.' && *pHostname != 0; ++pHostname)
+        {
+          *query = *pHostname;
+          ++query;
+          ++n;
+          qname_len ++;
         }
-        else{
-          jps_label_len_ptr = jps_label_ptr;
-          label_len = 0;
-          *jps_label_len_ptr = label_len;
-          jps_label_ptr++;
-          pHostname++;
-        }
+        *nptr = n;
+        qname_len ++;
       }
-      // add the endqquerry instructions for type and class
+      while(*pHostname != 0);
+
       static unsigned char endquery[] = {0,0,1,0,1};
-      memcpy(jps_label_ptr, endquery, 5);
+      // write a trailing 0 on qname and write q_type and q_class
+      // order is MSB, LSB (network)
+      memcpy(query, endquery, 5);
 
-      // loop_count has the total number of characters in the query
-      loop_count = loop_count + 6;
-      /*
-      ESP_LOGI(TAG, "...no of Char in JPS Question Array: %d", loop_count);
+      /* print our payload
+      char * jps_char_ptr;
+      jps_char_ptr = (char *) p->payload;
 
-      for (i=0; i < loop_count; ++i){
-        if (*jps_question_ptr > 10){
-          ESP_LOGI(TAG, "...Char in JPS Question Array: %c", *jps_question_ptr);
+      for (i=0; i < qname_len + 12 + 5; ++i){
+        if (*jps_char_ptr > 65){
+          ESP_LOGI(TAG, "......%d Char in payload Array: %c", i, *jps_char_ptr);
         }
         else{
-          ESP_LOGI(TAG, "...Char in JPS Question Array: %X", *jps_question_ptr);
-        }
-        jps_question_ptr++;
-      } */
-
-      // now copy the header and query into the udp transports payload
-
-      memcpy(jps_payload_ptr, jps_header, 12);
-
-      jps_payload_ptr = jps_payload_ptr + 12;
-      memcpy(jps_payload_ptr, jps_question, loop_count);
-
-      //print our payload
-      //jps_payload_ptr = p->payload;
-      //char * jps_char_ptr;
-      //jps_char_ptr = (char *) p->payload;
-
-      /*
-      for (i=0; i < loop_count + 12; ++i){
-        if (*jps_char_ptr > 10){
-          ESP_LOGI(TAG, "......Char in payload Array: %c", *jps_char_ptr);
-        }
-        else{
-          ESP_LOGI(TAG, "......Hex  in payload Array: %X", *jps_char_ptr);
+          ESP_LOGI(TAG, "......%d Hex  in payload Array: %X", i, *jps_char_ptr);
         }
         jps_char_ptr++;
-      }
-      */
+      } */
 
-      pbuf_realloc(p, loop_count + 12);
+      pbuf_realloc(p, qname_len + 12 + 5);
 
       udp_send(resolv_pcb, p);
+      ESP_LOGI(TAG, "...query sent to DNS server" );
       pbuf_free(p);
       break;
     }
@@ -615,13 +553,13 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   int num_answers = h.numanswers;
   while (num_answers > 0){
     /* check if answer has a name pointer */
-    ESP_LOGI(TAG, "... Checking for name ptr: %X", *jps_char_ptr);
+    //ESP_LOGI(TAG, "... Checking for name ptr: %X", *jps_char_ptr);
     if (*jps_char_ptr >= 0xC0){
-      ESP_LOGI(TAG, "... Name is a pointer: %X", *jps_char_ptr);
+      //ESP_LOGI(TAG, "... Name is a pointer: %X", *jps_char_ptr);
 
     // record whether there is a pointer to address.
       r_ans.ans_has_pointer = 0x0001;
-      ESP_LOGI(TAG, "... ans_has_ptr is: %d", r_ans.ans_has_pointer);
+      //ESP_LOGI(TAG, "... ans_has_ptr is: %d", r_ans.ans_has_pointer);
 
       r_ans.ans_pointer = (u16_t) *jps_char_ptr;
 
@@ -635,13 +573,13 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
     // the type of the query.  0x0001 represents "A" records (host addresses).
     // 0x000f for mail server (MX) records and 0x0002 for name servers (NS) records.
     r_ans.type = two_char_to_u16_t(jps_char_ptr);
-    ESP_LOGI(TAG, "... r_ans.type is: %d", r_ans.type);
+    //ESP_LOGI(TAG, "...Answer type is              : %d", r_ans.type);
     jps_char_ptr += 2;
 
     // Parse Answer Class - Two octets (16 bits) which specify the class of data
     // in the RDATA field. Class 0x0001 is IN internet.
     r_ans.class = two_char_to_u16_t(jps_char_ptr);
-    ESP_LOGI(TAG, "... r_ans.class is: %d", r_ans.class);
+    //ESP_LOGI(TAG, "...Answer class is             : %d", r_ans.class);
     jps_char_ptr += 2;
 
     // Parse TTL. TTL is the number of seconds the results can be considered valid.
@@ -669,7 +607,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   num_answers --;
   }
 
-  ESP_LOGI(TAG, ".struct approach to processing \n");
+  ESP_LOGI(TAG, ".struct approach to processing");
 
   char *pHostname;
   DNS_ANSWER *ans;
@@ -682,7 +620,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   ESP_LOGI(TAG, "...ID %d", htons(hdr->id));
   ESP_LOGI(TAG, "...Query %d", hdr->flags1 & DNS_FLAG1_RESPONSE);
   ESP_LOGI(TAG, "...Error %d", hdr->flags2 & DNS_FLAG2_ERR_MASK);
-  ESP_LOGI(TAG, "...Num questions %d, answers %d, authrr %d, extrarr %d\n",
+  ESP_LOGI(TAG, "...Num questions %d, answers %d, authrr %d, extrarr %d",
     htons(hdr->numquestions),
     htons(hdr->numanswers),
     htons(hdr->numauthrr),
@@ -692,7 +630,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   /* The ID in the DNS header should be our entry into the name table. */
   i = htons(hdr->id);
   pEntry = &dns_table[i];
-  ESP_LOGI(TAG, "...dns table entry id number is %d and the entry state is %d", i, pEntry->state);
+
   if( (i < LWIP_RESOLV_ENTRIES) && (pEntry->state == STATE_ASKING) )
   {
     /* This entry is now finished. */
@@ -733,9 +671,9 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
       }
 
       ans = (DNS_ANSWER *)pHostname;
-      /*printf("Answer: type %x, class %x, ttl %x, length %x\n",
+      /* printf("Answer: type %x, class %x, ttl %x, length %x\n",
          htons(ans->type), htons(ans->class), (htons(ans->ttl[0])
-           << 16) | htons(ans->ttl[1]), htons(ans->len));*/
+           << 16) | htons(ans->ttl[1]), htons(ans->len)); */
 
       /* Check for IP address type and Internet class. Others are
        discarded.*/
@@ -744,6 +682,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
       { /* TODO: we should really check that this IP address is the one we want. */
 
         memcpy(&r_ans.ipaddr.addr, &ans->ipchars[0], 4);
+        memcpy(&pEntry->ipaddr.addr, &ans->ipchars[0], 4);
         //r_ans.ipaddr.addr = ans->ipaddr;
         ESP_LOGI(TAG, "...Answer IP using memcpy             : "IPSTR"\n", IP2STR(&r_ans.ipaddr));
 
@@ -770,23 +709,21 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
 // pointed to by jps_cb_ptr
 
   static const char *TAG = "resolv_query";
-  ESP_LOGI(TAG, "...entered resolv query. The name is %s", name );
+  //ESP_LOGI(TAG, "...entered resolv query. The name is %s", name );
   struct ip4_addr jps_addr;
 
 
 // test the callback function passed as an argument
-  (*jps_cb_ptr) (name, &jps_addr);
-//  return;
+//  (*jps_cb_ptr) (name, &jps_addr);
 
 // now build the table as envisioned by Adam Dunkels
-
 static u8_t i;
 static u8_t lseqi;
 register DNS_TABLE_ENTRY *pEntry;
 
 lseqi = 0;
 
-ESP_LOGI(TAG, "...ready to build table The name is %s", name );
+ESP_LOGI(TAG, "...build entry for             : %s", name );
 
 //JPS Code to enter info into the table
 for (i = 0; i < LWIP_RESOLV_ENTRIES; ++i){
@@ -805,11 +742,12 @@ for (i = 0; i < LWIP_RESOLV_ENTRIES; ++i){
   }
 }
 pEntry = &dns_table[lseqi];
-ESP_LOGI(TAG, "...Created record at sequence number:  %d", lseqi );
-ESP_LOGI(TAG, "...Record name is:                     %s", pEntry->name );
-ESP_LOGI(TAG, "...Record state is:                    %d", (int) pEntry->state );
-ESP_LOGI(TAG, "...Record callback pointer is:         %p", pEntry->found );
-ESP_LOGI(TAG, "...Record IP address: " IPSTR, IP2STR(&pEntry->ipaddr));
+
+ESP_LOGI(TAG, "...Created record at seq no    : %d", lseqi );
+ESP_LOGI(TAG, "...Record name is              : %s", pEntry->name );
+ESP_LOGI(TAG, "...Record state is             : %d", (int) pEntry->state );
+//ESP_LOGI(TAG, "...Record callback pointer is:         %p", pEntry->found );
+ESP_LOGI(TAG, "...Record IP address           : " IPSTR, IP2STR(&pEntry->ipaddr));
 
 
 seqno = lseqi + 1;
@@ -864,8 +802,9 @@ resolv_init(ip_addr_t *dnsserver_ip_addr_ptr)
 {
   // dnsserver_ip_addr is of type ip_addr_t which supports both IPv4 and IPPROTO_IPV6
   //
-  static const char *TAG = "resolv init";
-  ESP_LOGI(TAG, "...dnsserver passed to init is: " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
+  static const char *TAG = "resolv init ";
+
+  ESP_LOGI(TAG, "...dnsserver is                : " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
 
   static u8_t i;
 
@@ -889,10 +828,11 @@ resolv_init(ip_addr_t *dnsserver_ip_addr_ptr)
   err_t ret;
   ret = udp_connect(resolv_pcb, dnsserver_ip_addr_ptr, DNS_SERVER_PORT);
   if (ret < 0 ){
-    ESP_LOGI(TAG, "...udp connect failed resolver is: " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
+
+    ESP_LOGI(TAG, "...udp connect failed to       : " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
   }
   else{
-    ESP_LOGI(TAG, "...udp connect succeeded resolver is: " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
+    ESP_LOGI(TAG, "...udp connected to            : " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
   }
   /*
 
