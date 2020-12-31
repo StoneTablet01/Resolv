@@ -309,12 +309,12 @@ check_entries(void)
   ESP_LOGI(TAG, "...begin check entries" );
 
   register DNS_HDR *hdr;
-  char *pHostname;
-  //char *query, *pHostname; JPS removing query
-  static u8_t i;
-  //static u8_t n;
+  char *query, *nptr, *pHostname;
+  static u16_t i;
+  static u8_t n;
   register DNS_TABLE_ENTRY *pEntry;
   struct pbuf *p;
+
   for(i = 0; i < LWIP_RESOLV_ENTRIES; ++i)
   {
     pEntry = &dns_table[i];
@@ -348,22 +348,67 @@ check_entries(void)
         pEntry->retries = 0;
       }
       /* if here, we have either a new query or a retry on a previous query to process */
-      //ESP_LOGI(TAG, "...new query to process");
       p = pbuf_alloc(PBUF_TRANSPORT, sizeof(DNS_HDR)+MAX_NAME_LENGTH+5, PBUF_RAM);
-      //ESP_LOGI(TAG, "...pbuf pointer points to: %p", p);
       hdr = (DNS_HDR *)p->payload;
-      //ESP_LOGI(TAG, "...hdr pointer points to: %p", hdr);
+      memset(hdr, 0, sizeof(DNS_HDR));
+      hdr->id = htons(i);
+      //ESP_LOGI(TAG, "...id assigned i = %X id = %X", i, hdr->id );
+
+      hdr->flags1 = DNS_FLAG1_RD;
+      hdr->numquestions = htons(1);
+      query = (char *)hdr + sizeof(DNS_HDR);
+      pHostname = pEntry->name;
+      --pHostname;
+      /* Convert hostname into suitable query format. */
+
+      int qname_len = 0;
+      do
+      {
+        ++pHostname;
+        nptr = query;
+        ++query;
+        for(n = 0; *pHostname != '.' && *pHostname != 0; ++pHostname)
+        {
+          *query = *pHostname;
+          ++query;
+          ++n;
+          qname_len ++;
+        }
+        *nptr = n;
+        qname_len ++;
+      }
+      while(*pHostname != 0);
+
+      static unsigned char endquery[] = {0,0,1,0,1};
+      memcpy(query, endquery, 5);
+
+      nptr = (char *)hdr + sizeof(DNS_HDR);
+      for (int j=0; j<21; j++){
+        ESP_LOGI(TAG, "......Dunkels Letter %X ", *nptr);
+        nptr++;
+      }
+
+      //print our payload
+      char * jps_char_ptr;
+      jps_char_ptr = (char *) p->payload;
+
+
+      for (i=0; i < qname_len + 12 + 5; ++i){
+        if (*jps_char_ptr > 65){
+          ESP_LOGI(TAG, "......%d Char in payload Array: %c", i, *jps_char_ptr);
+        }
+        else{
+          ESP_LOGI(TAG, "......%d Hex  in payload Array: %X", i, *jps_char_ptr);
+        }
+        jps_char_ptr++;
+      }
+
+
+
+
       void * jps_payload_ptr;
       jps_payload_ptr = p->payload;
-      //ESP_LOGI(TAG, "...jps_payload_ptr points to: %p", jps_payload_ptr);
-
-      //ESP_LOGI(TAG, "...hdr pointer points to : %p", hdr);
-      //ESP_LOGI(TAG, "...DNS HDR size is       : %d", sizeof(DNS_HDR));
       memset(hdr, 0, sizeof(DNS_HDR));
-
-      hdr->id = i;
-      hdr->flags1 = DNS_FLAG1_RD;
-      hdr->numquestions = 1;
 
       unsigned char jps_header[12];
       jps_header[0] = 0x00; /* ID of the request MSB*/
@@ -420,7 +465,7 @@ check_entries(void)
         }
       }
       // add the endqquerry instructions for type and class
-      static unsigned char endquery[] = {0,0,1,0,1};
+      //static unsigned char endquery[] = {0,0,1,0,1};
       memcpy(jps_label_ptr, endquery, 5);
 
       // loop_count has the total number of characters in the query
@@ -444,6 +489,17 @@ check_entries(void)
 
       jps_payload_ptr = jps_payload_ptr + 12;
       memcpy(jps_payload_ptr, jps_question, loop_count);
+
+      jps_char_ptr = (char *) p->payload;
+      for (i=0; i < loop_count + 12; ++i){
+        if (*jps_char_ptr > 65){
+          ESP_LOGI(TAG, "......%d Char in payload Array: %c", i, *jps_char_ptr);
+        }
+        else{
+          ESP_LOGI(TAG, "......%d Hex  in payload Array: %X", i, *jps_char_ptr);
+        }
+        jps_char_ptr++;
+      }
 
       //print our payload
       //jps_payload_ptr = p->payload;
