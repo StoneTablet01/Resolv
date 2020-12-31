@@ -465,6 +465,7 @@ check_entries(void)
       pbuf_realloc(p, loop_count + 12);
 
       udp_send(resolv_pcb, p);
+      ESP_LOGI(TAG, "...query sent to DNS server" );
       pbuf_free(p);
       break;
     }
@@ -670,7 +671,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   num_answers --;
   }
 
-  ESP_LOGI(TAG, ".struct approach to processing \n");
+  ESP_LOGI(TAG, ".struct approach to processing");
 
   char *pHostname;
   DNS_ANSWER *ans;
@@ -683,7 +684,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   ESP_LOGI(TAG, "...ID %d", htons(hdr->id));
   ESP_LOGI(TAG, "...Query %d", hdr->flags1 & DNS_FLAG1_RESPONSE);
   ESP_LOGI(TAG, "...Error %d", hdr->flags2 & DNS_FLAG2_ERR_MASK);
-  ESP_LOGI(TAG, "...Num questions %d, answers %d, authrr %d, extrarr %d\n",
+  ESP_LOGI(TAG, "...Num questions %d, answers %d, authrr %d, extrarr %d",
     htons(hdr->numquestions),
     htons(hdr->numanswers),
     htons(hdr->numauthrr),
@@ -693,7 +694,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   /* The ID in the DNS header should be our entry into the name table. */
   i = htons(hdr->id);
   pEntry = &dns_table[i];
-  ESP_LOGI(TAG, "...dns table entry id number is %d and the entry state is %d", i, pEntry->state);
+
   if( (i < LWIP_RESOLV_ENTRIES) && (pEntry->state == STATE_ASKING) )
   {
     /* This entry is now finished. */
@@ -734,9 +735,9 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
       }
 
       ans = (DNS_ANSWER *)pHostname;
-      /*printf("Answer: type %x, class %x, ttl %x, length %x\n",
+      /* printf("Answer: type %x, class %x, ttl %x, length %x\n",
          htons(ans->type), htons(ans->class), (htons(ans->ttl[0])
-           << 16) | htons(ans->ttl[1]), htons(ans->len));*/
+           << 16) | htons(ans->ttl[1]), htons(ans->len)); */
 
       /* Check for IP address type and Internet class. Others are
        discarded.*/
@@ -745,6 +746,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
       { /* TODO: we should really check that this IP address is the one we want. */
 
         memcpy(&r_ans.ipaddr.addr, &ans->ipchars[0], 4);
+        memcpy(&pEntry->ipaddr.addr, &ans->ipchars[0], 4);
         //r_ans.ipaddr.addr = ans->ipaddr;
         ESP_LOGI(TAG, "...Answer IP using memcpy             : "IPSTR"\n", IP2STR(&r_ans.ipaddr));
 

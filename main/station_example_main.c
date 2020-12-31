@@ -72,8 +72,8 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 }
 
 void jps_cb (char *name, struct ip4_addr *addr){
-    static const char *TAG = "jps callback";
-    ESP_LOGI(TAG, "...entered callback. name is %s", name );
+    static const char *TAG = "jps_cb     ";
+    ESP_LOGI(TAG, "...DNS information for %s IP is: "IPSTR"", name, IP2STR(addr));
 }
 
 void wifi_init_sta(void)
@@ -229,7 +229,7 @@ void wifi_init_sta(void)
     if (ret < 0 ){
       ESP_LOGI(TAG, "... Error initializing resolver " );
     }
-    ESP_LOGI(TAG, "...Returned from Relover Init");
+    ESP_LOGI(TAG, "...Returned from resolver init");
 
     //The user can check if the DNS server was configured.
     if (resolv_getserver() != 0){
@@ -282,7 +282,7 @@ void wifi_init_sta(void)
 
     ESP_LOGI(TAG, ".Begin Wait");
     vTaskDelay(1000 / portTICK_PERIOD_MS);
-    
+
     ESP_LOGI(TAG, "\n");
     ESP_LOGI(TAG, ".END Wait");
     ESP_LOGI(TAG, "...Check for ip address from table");
@@ -295,19 +295,21 @@ void wifi_init_sta(void)
       ESP_LOGI(TAG, "...IP address from resolv_lookup not found");
     }
 
+    ESP_LOGI(TAG, "\n");
+    ESP_LOGI(TAG, ".Begin gethostbyname");
     hp = gethostbyname(full_URL);
 
     ip4_addr = (struct ip4_addr *)hp->h_addr_list[0];
 
-    ESP_LOGI(TAG, "Gathering DNS records for %s ", full_URL);
-    ESP_LOGI(TAG, "Address No. 0 from DNS: " IPSTR, IP2STR(ip4_addr));
+    ESP_LOGI(TAG, "...Gathering DNS records for %s ", full_URL);
+    ESP_LOGI(TAG, "...Address No. 0 from DNS: " IPSTR, IP2STR(ip4_addr));
 
     if (hp->h_addr_list[1] != NULL){
       ip4_addr = (struct ip4_addr *)hp->h_addr_list[1];
-      ESP_LOGI(TAG, "Address No. 1 DNS: " IPSTR, IP2STR(ip4_addr));
+      ESP_LOGI(TAG, "...Address No. 1 DNS: " IPSTR, IP2STR(ip4_addr));
     }
     else{
-      ESP_LOGI(TAG, "Address No. 1 from DNS was null");
+      ESP_LOGI(TAG, "...Address No. 1 from DNS was null");
     }
 
     ESP_LOGI(TAG, "Done with connection... Now shutdown handlers");
