@@ -129,41 +129,6 @@ typedef struct s_dns_hdr {
   u16_t numextrarr;
 } DNS_HDR;
 
-typedef struct a_real_hdr {
-  u16_t id;
-  //u8_t flags1, flags2;
-  int qr_flag;
-  int rd_flag;
-  int ra_flag;
-  int error_code;
-  int error_name;
-#define DNS_QR_MASK               0x80
-#define DNS_RD_MASK               0x01
-#define DNS_RA_MASK               0x80
-#define DNS_ERR_MASK              0x0F
-#define DNS_ERR_NAME_MASK         0x03
-  u16_t numquestions; //QDCOUNT
-  u16_t numanswers;   //ANCOUNT
-  u16_t numauthrr;    //NSCOUNT
-  u16_t numextrarr;   //ARCOUNT
-} R_HDR;
-
-/* The DNS answer message structure */
-typedef struct r_dns_answer {
-  /* DNS answer record starts with either a domain name or a pointer
-     to a name already present somewhere in the packet. */
-  char name_requested [MAX_NAME_LENGTH];
-  u16_t q_type;
-  u16_t q_class;
-  u16_t type;
-  u16_t class;
-  u8_t ans_has_pointer;
-  u8_t ans_pointer;
-  u32_t validity_time;
-  u16_t len;
-  struct ip4_addr ipaddr;
-} R_DNS_ANS;
-
 /* The DNS answer message structure */
 typedef struct s_dns_answer {
   /* DNS answer record starts with either a domain name or a pointer
@@ -228,78 +193,6 @@ parse_name(unsigned char *query)
   } while(*query != 0);
 
   return query + 1;
-}
-
-/*---------------------------------------------------------------------------
- * parse_qname_length() - Walk through the encoded answer buffer and return
- * the length of the encoded name in chars.
- *---------------------------------------------------------------------------*/
-int
-parse_qname_length(char *jps_char_ptr){
-  int subname_len;
-  int encoded_name_len =0;
-
-  while(*jps_char_ptr != 0 && encoded_name_len < MAX_NAME_LENGTH - 1){
-    subname_len = (int) *jps_char_ptr; //first item is the length of the first subname
-    encoded_name_len += (subname_len + 1);
-    jps_char_ptr+= (subname_len + 1);
-    }
-  encoded_name_len++;
-  return encoded_name_len;
-}
-
-/*---------------------------------------------------------------------------
- * parse_qname_name() - Walk through the encoded answer buffer and return
- * the name requested as a full domain name with "." separating the Subnames
- * and a trailing 0x00 to mark it as a string
- *---------------------------------------------------------------------------*/
-int
-parse_qname_name (char *jps_char_ptr, char *name_ptr){
-  int subname_len;
-  int encoded_name_len = 0;
-
-  while(*jps_char_ptr != 0 && encoded_name_len < MAX_NAME_LENGTH - 1){
-    subname_len = (int) *jps_char_ptr; //first item is the length of the first subname
-    jps_char_ptr++;
-
-    memcpy(name_ptr, jps_char_ptr, subname_len);
-    jps_char_ptr += subname_len;
-    name_ptr += subname_len;
-    *name_ptr = 0x2e; //Add a decimal point between names
-    name_ptr ++;
-    encoded_name_len += (subname_len + 1);
-    }
-
-  if (encoded_name_len != 0){
-    name_ptr--;
-    *name_ptr = 0x00; // end with trailing 0 not a decial pt
-  }
-  encoded_name_len++;
-  return encoded_name_len;
-}
-
-
-/* When receiving serial transmission of 16 bit information as
-two 8 bit words from a Big Endian source, the order of bytes is
-word 1 MS byte - word 1 LS byte
-This routine stores these 2 8 bit bytes in a 16 bit word observing significance
- */
-u16_t
-two_char_to_u16_t(char *char_ptr){
-  return (*(char_ptr)<<8) | *(char_ptr+1);
-}
-
-/* When receiving serial transmission of 32 bit information as
-two 16 bit words from a Big Endian source, the order of bytes is
-word 1 MS byte - word 1 LS byte - word 2 MS byte - word 2 LS byte 1
-This routine stores these 4 8 bit bytes in a 32 bit word observing significance
- */
-u32_t
-four_char_to_u32_t(char *char_ptr){
-  return (*(char_ptr)<<24) |
-    (*(char_ptr+1)<<16) |
-    (*(char_ptr+2)<<8) |
-    *(char_ptr+3);
 }
 
 void
@@ -384,20 +277,6 @@ check_entries(void)
       // order is MSB, LSB (network)
       memcpy(query, endquery, 5);
 
-      /* print our payload
-      char * jps_char_ptr;
-      jps_char_ptr = (char *) p->payload;
-
-      for (i=0; i < qname_len + 12 + 5; ++i){
-        if (*jps_char_ptr > 65){
-          ESP_LOGI(TAG, "......%d Char in payload Array: %c", i, *jps_char_ptr);
-        }
-        else{
-          ESP_LOGI(TAG, "......%d Hex  in payload Array: %X", i, *jps_char_ptr);
-        }
-        jps_char_ptr++;
-      } */
-
       pbuf_realloc(p, qname_len + 12 + 5);
 
       udp_send(resolv_pcb, p);
@@ -413,201 +292,12 @@ check_entries(void)
  * Callback for DNS responses
  *
  *---------------------------------------------------------------------------*/
-
-/*
-Lwip 2.0 documentation specifies the signature as
-void udp_recv	(	struct udp_pcb * 	pcb,
-udp_recv_fn 	recv,
-void * 	recv_arg
-)
-
-further, udp_recv_fn should have the signature
-typedef void(* udp_recv_fn) (void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port)
-
-*/
-
 static void
 resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
                                   const ip_addr_t *addr, u16_t port)
 {
-  const char* TAG = "resolv_recv";
-  ESP_LOGI(TAG, "... resolv_recv function called");
-
-
-  char * jps_char_ptr;
-  jps_char_ptr = (char *) p->payload;
-
-  /*JPS check received buffer by printing out
-
-  for (int i=0; i < 48; ++i){
-    if ((*jps_char_ptr > 64 && *jps_char_ptr <91) ||
-      (*jps_char_ptr > 96 && *jps_char_ptr <123)){
-      ESP_LOGI(TAG, "......Letter in received buffer: %c", *jps_char_ptr);
-    }
-    else{
-      ESP_LOGI(TAG, "......Hex in received buffer   : %X", *jps_char_ptr);
-    }
-    jps_char_ptr++;
-  } // check printer buffer end */
-
-  // When the DNS server sends a buffer, it contains a header and an answer
-  // create structs to store this information
-  R_HDR h;
-  R_DNS_ANS r_ans;
-
-
-  // Now Process the header section
-  jps_char_ptr = (char *) p->payload; // points to start of header
-
-  h.id = two_char_to_u16_t(jps_char_ptr); // ID is the first two x 8-bit bytes of buffer
-  jps_char_ptr += 2; //2 characters processed. Point to next next field
-
-  //h.flags1 = ; // Flags 1 contains flags QR, Opcode, AA, TC, and RD
-  h.qr_flag = (int)((*jps_char_ptr & DNS_QR_MASK)>>7);
-  h.rd_flag = (int)(*jps_char_ptr & DNS_RD_MASK);
-  jps_char_ptr++; // 1 character processed. Point to next field
-
-  //h.flags2 = *jps_char_ptr; // Flags 2 contains flags RA, Z, RCODE
-  h.ra_flag = (int)((*jps_char_ptr & DNS_RA_MASK)>>7);
-  h.error_code = (int)(*jps_char_ptr & DNS_ERR_MASK);
-  h.error_name = (int)((*jps_char_ptr & DNS_ERR_NAME_MASK)>>1);
-  jps_char_ptr++;
-
-  h.numquestions = two_char_to_u16_t(jps_char_ptr); // called QDCOUNT in RFC1035
-  jps_char_ptr += 2;
-
-  h.numanswers = two_char_to_u16_t(jps_char_ptr); // called ANCOUNT in RFC1035
-  jps_char_ptr += 2;
-
-  h.numauthrr = two_char_to_u16_t(jps_char_ptr); // called NSCOUNT in RFC1035
-  jps_char_ptr += 2;
-
-  h.numextrarr = two_char_to_u16_t(jps_char_ptr); // called ARCOUNT in RFC1035
-  jps_char_ptr += 2;
-
-  ESP_LOGI(TAG, "\n");
-  ESP_LOGI(TAG, ".DNS Answer header processed");
-  ESP_LOGI(TAG, "...ID is                       : %d", h.id);
-  ESP_LOGI(TAG, "...QR (0= querry, 1= answer)   : %d", h.qr_flag);
-  ESP_LOGI(TAG, "...RD (1= recursion requested) : %d", h.rd_flag);
-  ESP_LOGI(TAG, "...RA (1= recursion available) : %d", h.ra_flag);
-  ESP_LOGI(TAG, "...Error Code (0= No errors)   : %d", h.error_code);
-  ESP_LOGI(TAG, "...No. of questions            : %d", h.numquestions);
-  ESP_LOGI(TAG, "...No. of answers              : %d", h.numanswers);
-  ESP_LOGI(TAG, "...No. of name server records  : %d", h.numauthrr);
-  ESP_LOGI(TAG, "...No. of additional records   : %d", h.numextrarr);
-
-
-  // Now parse the DNS Questions section of the reply. This section
-  // mirrors back the question the DNS Server was asked. The section consists of three fields
-  // QNAME, QTYPE, QCLASS
-
-  // Parse QNAME
-  int encoded_name_len;
-  encoded_name_len = parse_qname_name(jps_char_ptr, &r_ans.name_requested[0]);
-  jps_char_ptr += encoded_name_len;
-
-  // Parse QTYPE Requested Answer type. This a two octet - 16 bit field which specifies
-  // the type of the query.  0x0001 represents "A" records (host addresses).
-  r_ans.q_type = two_char_to_u16_t(jps_char_ptr);
-  jps_char_ptr += 2;
-
-  // Parse QCLASS requested Class - This is a two octet - 16 bits field which specifies
-  // the class of the data in the RDATA field. Class 01 is IN for internet addr
-  r_ans.q_class = two_char_to_u16_t(jps_char_ptr);
-  jps_char_ptr += 2;
-
-  //DNS Questions parse completed
-  ESP_LOGI(TAG, "\n");
-  ESP_LOGI(TAG, ".DNS Questions Asked section processed");
-  ESP_LOGI(TAG, "...Name Requested length is    : %d", encoded_name_len);
-  ESP_LOGI(TAG, "...Full Name Requested is      : %s", r_ans.name_requested);
-  ESP_LOGI(TAG, "...Type Requested is           : %d", r_ans.q_type);
-  ESP_LOGI(TAG, "...Class Requested is          : %d", r_ans.q_class);
-
-  //DNS Question Section is now completed
-
-  /*Now parse DNS Answers. The DNS Answers section has 6 fields. The fields are
-  NAME The domain name that was queried, in the same format as the QNAME in the questions.
-  TYPE Two octets specify the meaning of the data in the RDATA field. Type 0x0001 is an (A record) and type 0x0005 is (CNAME).
-  CLASS Two octets specify the class of the data in the RDATA field. IN is 0x0001
-  TTL Four octets specify the number of seconds the results can be cached.
-  RDLENGTH The length of the RDATA field.
-  RDATA The data of the response. The format is dependent on the TYPE field: if TYPE 1,
-  for A records, then this is the IP address (4 octets).*/
-
-  /* Start with the name field. The name field utilizes a compression scheme which can
-  eliminate the repetition of domain names in the NAME, QNAME, and RDATA fields.
-
-  Specifically, The compression scheme allows a domain name in a message to be represented as either:
-    a sequence of labels ending in a zero octet
-    a pointer (offest from the start of the message buffer in byte )
-    a sequence of labels ending with a pointer
-
-  Which compression method is used can be determined by the starting byte. Labels are limited
-  to 63 bytes. This means that if the two MSB's are set to 1 at the start of this field
-  the next 14 bits that follow are the offset. */
-
-  //loop through the number of answers
-
-  int num_answers = h.numanswers;
-  while (num_answers > 0){
-    /* check if answer has a name pointer */
-    //ESP_LOGI(TAG, "... Checking for name ptr: %X", *jps_char_ptr);
-    if (*jps_char_ptr >= 0xC0){
-      //ESP_LOGI(TAG, "... Name is a pointer: %X", *jps_char_ptr);
-
-    // record whether there is a pointer to address.
-      r_ans.ans_has_pointer = 0x0001;
-      //ESP_LOGI(TAG, "... ans_has_ptr is: %d", r_ans.ans_has_pointer);
-
-      r_ans.ans_pointer = (u16_t) *jps_char_ptr;
-
-      jps_char_ptr += 2;
-    }
-    else{
-      // read name as before, starting with length
-    }
-
-    // Parse Answer type -  two octet code (16 bit field) which specifies
-    // the type of the query.  0x0001 represents "A" records (host addresses).
-    // 0x000f for mail server (MX) records and 0x0002 for name servers (NS) records.
-    r_ans.type = two_char_to_u16_t(jps_char_ptr);
-    //ESP_LOGI(TAG, "...Answer type is              : %d", r_ans.type);
-    jps_char_ptr += 2;
-
-    // Parse Answer Class - Two octets (16 bits) which specify the class of data
-    // in the RDATA field. Class 0x0001 is IN internet.
-    r_ans.class = two_char_to_u16_t(jps_char_ptr);
-    //ESP_LOGI(TAG, "...Answer class is             : %d", r_ans.class);
-    jps_char_ptr += 2;
-
-    // Parse TTL. TTL is the number of seconds the results can be considered valid.
-    // total of 32 bits. These are stored in 4 consequtive 8 bit bytes in the buffer
-    r_ans.validity_time = four_char_to_u32_t(jps_char_ptr);
-    jps_char_ptr += 4;
-
-    // Parse Len. Len is the length (in 8 bt chars) of RDATA. If an IP4_ADDR
-    // is returned, the length is 4
-    r_ans.len = two_char_to_u16_t(jps_char_ptr);
-    jps_char_ptr += 2;
-
-    // Parse ipaddr into struct. Note .addr is Big Endian by design so
-    // no need to provide adjustment for Little Endian compilers as was done earlier
-    memcpy(&r_ans.ipaddr.addr, jps_char_ptr, 4);
-
-    ESP_LOGI(TAG, "\n");
-    ESP_LOGI(TAG, ".DNS answer data processed");
-    ESP_LOGI(TAG, "...DNS Name Requested          : %s", r_ans.name_requested);
-    ESP_LOGI(TAG, "...Answer Type                 : %d", r_ans.type);
-    ESP_LOGI(TAG, "...Answer Class                : %d", r_ans.class);
-    ESP_LOGI(TAG, "...Validity Time 1             : %d", r_ans.validity_time);
-    ESP_LOGI(TAG, "...Answer RD  length           : %d", r_ans.len);
-    ESP_LOGI(TAG, "...Answer IP                   : "IPSTR"\n", IP2STR(&r_ans.ipaddr));
-  num_answers --;
-  }
-
-  ESP_LOGI(TAG, ".struct approach to processing");
+  const char* TAG = "resolv_recv ";
+  ESP_LOGI(TAG, "...resolv_recv function called");
 
   char *pHostname;
   DNS_ANSWER *ans;
@@ -626,7 +316,6 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
     htons(hdr->numauthrr),
     htons(hdr->numextrarr));
 
-  //
   /* The ID in the DNS header should be our entry into the name table. */
   i = htons(hdr->id);
   pEntry = &dns_table[i];
@@ -680,11 +369,8 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
 
       if((htons(ans->type) == 1) && (htons(ans->class) == 1) && (htons(ans->len) == 4) )
       { /* TODO: we should really check that this IP address is the one we want. */
-
-        memcpy(&r_ans.ipaddr.addr, &ans->ipchars[0], 4);
         memcpy(&pEntry->ipaddr.addr, &ans->ipchars[0], 4);
-        //r_ans.ipaddr.addr = ans->ipaddr;
-        ESP_LOGI(TAG, "...Answer IP using memcpy             : "IPSTR"\n", IP2STR(&r_ans.ipaddr));
+        ESP_LOGI(TAG, "...Answer IP using memcpy             : "IPSTR"\n", IP2STR(&pEntry->ipaddr));
 
         // call specified callback function if provided
         if (pEntry->found)
@@ -699,27 +385,15 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
     }
   }
 }
-// Here is the full resolv_query signature I will ultimately have
-// this was from strophe resolver. SRV request is 33
-//    len = res_query(fulldomain, MESSAGE_C_IN, MESSAGE_T_SRV, buf,
-//                    RESOLVER_BUF_MAX);
 
-  void resolv_query(char *name, user_cb_fn jps_cb_ptr){
-// Testing a function that makes a callback to the function
-// pointed to by jps_cb_ptr
+void resolv_query(char *name, user_cb_fn jps_cb_ptr){
 
-  static const char *TAG = "resolv_query";
-  //ESP_LOGI(TAG, "...entered resolv query. The name is %s", name );
-  struct ip4_addr jps_addr;
-
-
-// test the callback function passed as an argument
-//  (*jps_cb_ptr) (name, &jps_addr);
-
-// now build the table as envisioned by Adam Dunkels
+static const char *TAG = "resolv_query";
 static u8_t i;
 static u8_t lseqi;
 register DNS_TABLE_ENTRY *pEntry;
+
+ESP_LOGI(TAG, "...entered resolv query. The name is %s", name );
 
 lseqi = 0;
 
@@ -734,10 +408,6 @@ for (i = 0; i < LWIP_RESOLV_ENTRIES; ++i){
     pEntry->found = jps_cb_ptr;
     pEntry->state = STATE_NEW;
     pEntry->seqno = lseqi;
-    // enter dummy ip address for Testing
-    IP4_ADDR(&jps_addr, 192, 168, 1, 10);
-    //ESP_LOGI(TAG, "...dummy IP address: " IPSTR, IP2STR(&jps_addr));
-    //pEntry->ipaddr = jps_addr;
     break;
   }
 }
@@ -749,9 +419,7 @@ ESP_LOGI(TAG, "...Record state is             : %d", (int) pEntry->state );
 //ESP_LOGI(TAG, "...Record callback pointer is:         %p", pEntry->found );
 ESP_LOGI(TAG, "...Record IP address           : " IPSTR, IP2STR(&pEntry->ipaddr));
 
-
 seqno = lseqi + 1;
-
 }
 
 /*---------------------------------------------------------------------------*
@@ -798,23 +466,15 @@ resolv_getserver(void)
 }
 
 err_t
-resolv_init(ip_addr_t *dnsserver_ip_addr_ptr)
-{
-  // dnsserver_ip_addr is of type ip_addr_t which supports both IPv4 and IPPROTO_IPV6
-  //
+resolv_init(ip_addr_t *dnsserver_ip_addr_ptr) {
   static const char *TAG = "resolv init ";
-
   ESP_LOGI(TAG, "...dnsserver is                : " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
-
   static u8_t i;
 
   serverIP.addr = dnsserver_ip_addr_ptr->u_addr.ip4.addr;
 
   for(i=0; i<LWIP_RESOLV_ENTRIES; ++i){
-    //dns_table[i].state = STATE_DONE;
     dns_table[i].state = STATE_UNUSED;
-
-    // jps added next Line
     dns_table[i].seqno = 0;
   }
 
@@ -834,31 +494,11 @@ resolv_init(ip_addr_t *dnsserver_ip_addr_ptr)
   else{
     ESP_LOGI(TAG, "...udp connected to            : " IPSTR, IP2STR(&dnsserver_ip_addr_ptr->u_addr.ip4));
   }
-  /*
-
-  Now ready to call the udp_recv function which registers the function
-  that should be called when packets are received. The following Information
-  was gathered as I wanted to get the signatures correct.
-
-  The original call to lwip used was:
-
-      udp_recv(resolv_pcb, resolv_recv, NULL);
-
-  But the Lwip 2.0 documentation specifies the signature of udp_recv as
-  void udp_recv	(	struct udp_pcb * 	pcb,
-                      udp_recv_fn 	recv,
-                      void * 	recv_arg )
-
-  Therefore I created a function pointer type for use in the call badk as follows:
-  */
 
   typedef void(* udp_recv_fn) (void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port);
   udp_recv_fn udp_r = &resolv_recv;
-
   udp_recv (resolv_pcb, udp_r, NULL);
 
   initFlag = 1;
-
-
   return ERR_OK;
 }
