@@ -67,10 +67,6 @@
 #include "lwip/mem.h"
 #include "lwip/udp.h"
 #include "lwip/ip_addr.h"
-
-// JPS addr include
-#include "lwip/ip4_addr.h"
-
 #include "lwip/netif.h"
 #include "lwip/inet.h"
 #include "netif/etharp.h"
@@ -78,13 +74,12 @@
 #include "lwip/opt.h"
 
 #include "resolv_jps.h"
-#include "esp_system.h"
-#include "esp_event.h"
+//#include "esp_system.h"
+//#include "esp_event.h"
 #include "esp_log.h"
-
 //added to get error checks
 #include "esp_netif.h"
-#include "esp_netif_ppp.h"
+//#include "esp_netif_ppp.h"
 
 /* The maximum length of a host name supported in the name table. */
 #define MAX_NAME_LENGTH 32
@@ -98,14 +93,6 @@
 
 #ifndef DNS_SERVER_PORT
 #define DNS_SERVER_PORT 53
-#endif
-
-#if _BYTE_ORDER == _LITTLE_ENDIAN
-#define JPS_FLAG 99
-#endif
-
-#if _BYTE_ORDER == _BIG_ENDIAN
-#define JPS_FLAG 69
 #endif
 
 /* The DNS message header */
@@ -161,9 +148,6 @@ static DNS_TABLE_ENTRY dns_table[LWIP_RESOLV_ENTRIES];
 
 // JPS was here to modify initialization of seqno
 static u8_t seqno = 0;
-// this was original Line
-//static u8_t seqno;
-
 static struct udp_pcb *resolv_pcb = NULL; /* UDP connection to DNS server */
 static struct ip4_addr serverIP; //the adress of the DNS server to use
 static u8_t initFlag; // set to 1 if initialized
@@ -200,10 +184,9 @@ check_entries(void)
 {
   static const char *TAG = "chck_entries";
   ESP_LOGI(TAG, "...begin check entries" );
-
   register DNS_HDR *hdr;
   char *query, *nptr, *pHostname;
-  static u16_t i;
+  static u16_t i; //i is index to dns_table
   static u8_t n;
   register DNS_TABLE_ENTRY *pEntry;
   struct pbuf *p;
@@ -277,8 +260,8 @@ check_entries(void)
       // order is MSB, LSB (network)
       memcpy(query, endquery, 5);
 
-      pbuf_realloc(p, qname_len + 12 + 5);
-
+      //pbuf_realloc(p, qname_len + 12 + 5);
+      pbuf_realloc(p, sizeof(DNS_HDR) + qname_len + 5);
       udp_send(resolv_pcb, p);
       ESP_LOGI(TAG, "...query sent to DNS server" );
       pbuf_free(p);
@@ -302,6 +285,8 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   char *pHostname;
   DNS_ANSWER *ans;
   DNS_HDR *hdr;
+
+  //static u8_t nquestions,
   static u8_t nanswers;
   static u8_t i;
   register DNS_TABLE_ENTRY *pEntry;
@@ -319,7 +304,6 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   /* The ID in the DNS header should be our entry into the name table. */
   i = htons(hdr->id);
   pEntry = &dns_table[i];
-
   if( (i < LWIP_RESOLV_ENTRIES) && (pEntry->state == STATE_ASKING) )
   {
     /* This entry is now finished. */
@@ -337,7 +321,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
 
     /* We only care about the question(s) and the answers. The authrr
        and the extrarr are simply discarded. */
-
+    //nquestions = htons(hdr->numquestions);
     nanswers = htons(hdr->numanswers);
 
     /* Skip the name in the question. XXX: This should really be
@@ -462,7 +446,7 @@ resolv_getserver(void)
 {
   if(resolv_pcb == NULL)
     return 0;
-  return serverIP.addr;
+  return resolv_pcb->remote_ip.u_addr.ip4.addr;
 }
 
 err_t
@@ -482,6 +466,7 @@ resolv_init(ip_addr_t *dnsserver_ip_addr_ptr) {
     ESP_LOGI(TAG, "...resolv_pcb exists...delete it");
     udp_remove(resolv_pcb);
   }
+    /* TODO: check for valid IP address for DNS server? */
   resolv_pcb = udp_new();
   udp_bind(resolv_pcb, IP_ADDR_ANY, 0);
 
