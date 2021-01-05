@@ -369,6 +369,11 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
     }
   }
 }
+/*---------------------------------------------------------------------------*
+ *
+ * Enter a request to get information for a hostname into the dns table
+ *
+ *---------------------------------------------------------------------------*/
 
 void resolv_query(char *name, user_cb_fn jps_cb_ptr){
 
