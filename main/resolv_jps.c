@@ -95,10 +95,16 @@
 #define DNS_SERVER_PORT 53
 #endif
 
-/* The DNS message header */
+/** @brief The DNS message header. \n
+  The DNS header is 12 8-bit bytes and is defined in RFC-1035\n
+  The header is used to send queries to DNS server. The header is also part of
+  the answer returned by the DNS server.
+  @note order of the fields in the struct must not be changed as the struct is used as
+  an overlay that allows information to be extracted from the returned answer buffer*/
 typedef struct s_dns_hdr {
-  u16_t id;
-  u8_t flags1, flags2;
+  u16_t id; /**< ID Number of the request */
+  u8_t flags1; /**< Flags for QR| Opcode |AA|TC|RD */
+  u8_t flags2; /**< Flags for RA| Z | RCODE | */
 #define DNS_FLAG1_RESPONSE        0x80
 #define DNS_FLAG1_OPCODE_STATUS   0x10
 #define DNS_FLAG1_OPCODE_INVERSE  0x08
@@ -110,55 +116,72 @@ typedef struct s_dns_hdr {
 #define DNS_FLAG2_ERR_MASK        0x0f
 #define DNS_FLAG2_ERR_NONE        0x00
 #define DNS_FLAG2_ERR_NAME        0x03
-  u16_t numquestions;
-  u16_t numanswers;
-  u16_t numauthrr;
-  u16_t numextrarr;
+  u16_t numquestions; /**< Number of questions asked of DNS server */
+  u16_t numanswers; /**< Number of answers from DNS server */
+  u16_t numauthrr; /**< number of name server resource records in the authority records*/
+  u16_t numextrarr; /** Number of extra records in the reply */
 } DNS_HDR;
 
-/* The DNS answer message structure */
+/** DNS answer message structure for "A" type record requests.
+  The DNS answer starts with either a domain name or a pointer
+  to a name already present somewhere in the packet (buffer). After the name, additional
+  data follows. The purpose of this structure is to extract this information by using
+  the structure as an overlay on the buffer received from the DNS Server. Details of
+  the order and type of the data are defined in RFC-1035.
+  @note This structure can only be used on Class 1 Type 1 requests which return a 4 character
+  IP address.
+  @note order of the fields in the struct must not be changed as the struct is used as
+  an overlay that allows information to be extracted from the returned answer buffer*
+  @note all multi-byte data in the buffer is organized as high order byte / low
+  order byte (BIG ENDIAN). Adjustments must be made using the htons or ntohs fucncitons
+  to allow use on both Big and Little Endian machines.*/
 typedef struct s_dns_answer {
-  /* DNS answer record starts with either a domain name or a pointer
-     to a name already present somewhere in the packet. */
-  u16_t type;
-  u16_t class;
-  u16_t ttl[2];
-  u16_t len;
-  //struct ip_addr ipaddr;
-  char ipchars[4];
+  u16_t type; /**< specifies the meaning of the data in the RDATA field. */
+  u16_t class; /**< Class 0x0001 represents Internet addresses */
+  u16_t ttl[2]; /**< The number of seconds the results can be cached */
+  u16_t len; /**< The length of the RDATA field. Four (4) for IP4 addresses */
+  char ipchars[4]; /**< IPaddr organized as four addresses (ie. 192.168.1.1) in BE format */
 } DNS_ANSWER;
 
+/** @brief Hostnames and DNS results information Table entry\n
+  *Whenever a DNS search is requested for a hostname, an entry is created in the dns table.
+  *When information is returned from a dns querry, the table is updated with the data. status
+  *of the entry changes changes over time from new, to asking etc.
+  */
 typedef struct namemap {
 #define STATE_UNUSED 0
 #define STATE_NEW    1
 #define STATE_ASKING 2
 #define STATE_DONE   3
 #define STATE_ERROR  4
-  u8_t state;
-  u8_t tmr;
-  u8_t retries;
-  u8_t seqno;
-  u8_t err;
-  char name[MAX_NAME_LENGTH];
-  struct ip4_addr ipaddr;
-  void (* found)(char *name, struct ip4_addr *ipaddr); /* pointer to callback on DNS query done */
+ u8_t state; /**< entry can be unused, new, asking, done, error */
+ u8_t tmr; /**< timer is used to age entry information  */
+ u8_t retries;
+ u8_t seqno;
+ u8_t err;
+ char name[MAX_NAME_LENGTH]; /**< Hostname as ASCI characters  */
+ struct ip4_addr ipaddr; /**< If DNS success, The IP4 address is placed here */
+ void (* found)(char *name, struct ip4_addr *ipaddr); /**< pointer to callback on DNS query done */
 }DNS_TABLE_ENTRY;
 
 static DNS_TABLE_ENTRY dns_table[LWIP_RESOLV_ENTRIES];
-
-// JPS was here to modify initialization of seqno
 static u8_t seqno = 0;
-static struct udp_pcb *resolv_pcb = NULL; /* UDP connection to DNS server */
-static struct ip4_addr serverIP; //the adress of the DNS server to use
-static u8_t initFlag; // set to 1 if initialized
+static struct udp_pcb *resolv_pcb = NULL; /**< UDP connection to DNS server */
+static struct ip4_addr serverIP; /**<the adress of the DNS server to use */
+static u8_t initFlag; /**< set to 1 if initialized*/
 
 //JPS Test Line follows
 struct ip_addr ipaddr1;
 
-/*---------------------------------------------------------------------------
- * parse_name() - walk through a compact encoded DNS name and return the end
- * of the name.
- *---------------------------------------------------------------------------*/
+/** Parse_Name finds the end of QNAME.
+  * The DNS RFC-1035 specification requires hostnames to be specially encoded.
+  * A domain name is represented as a sequence of labels, where each label consists
+  * of a length octet followed by that number of octets of asci chars. The domain
+  * name terminates with the zero length octet for the null label of the root. This
+  * routine finds the end of the name.
+  *
+  * @param querry a pointer to the start of the name section of the buffer
+  * @returns pointer to end of the name*/
 static unsigned char *
 parse_name(unsigned char *query)
 {
