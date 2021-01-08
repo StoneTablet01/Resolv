@@ -1,3 +1,3 @@
-idf_component_register(SRCS "station_example_main.c"
-                    "resolv_jps.c"
+idf_component_register(SRCS "dns_records_main.c"
+                    "sti_resolv.c"
                     INCLUDE_DIRS ".")

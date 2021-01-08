@@ -149,7 +149,7 @@ I (2441) resolv_recv : ...Error 0
 I (2451) resolv_recv : ...Num questions 1, answers 1, authrr 0, extrarr 0
 I (2461) resolv_recv : ...Answer IP using memcpy             : 116.203.3.253
 
-I (2461) jps_cb     : ...DNS information for xmpp.dismail.de IP is: 116.203.3.253
+I (2461) sti_cb     : ...DNS information for xmpp.dismail.de IP is: 116.203.3.253
 I (3271) wifi station:
 
 I (3271) wifi station: .END Wait
