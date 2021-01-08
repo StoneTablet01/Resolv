@@ -1,3 +1,3 @@
 idf_component_register(SRCS "station_example_main.c"
-                    "resolv_jps.c"
+                    "sti_resolv.c"
                     INCLUDE_DIRS ".")

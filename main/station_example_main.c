@@ -25,7 +25,7 @@
 #include "lwip/sockets.h"
 #include "lwip/netdb.h"
 
-#include "resolv_jps.h"
+#include "sti_resolv.h"
 
 /* The examples use WiFi configuration that you can set via project configuration menu
    If you'd rather not, just change the below entries to strings with
@@ -209,13 +209,6 @@ void wifi_init_sta(void)
     esp_netif_get_dns_info(esp_netif_handle, ask_for_dns_max, &dns_info);
     ESP_LOGI(TAG, "...Name Server DNS Max        : " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
 
-    //dnsserver = dns_info.ip.u_addr.ip4;
-    //ESP_LOGI(TAG, "...dnsserver to use for resolver is: " IPSTR, IP2STR(&my_server));
-    //ESP_LOGI(TAG, "...dnsserver to use for resolver is: " IPSTR, IP2STR(dnsserver));
-
-    // JPS see if I can get the resolver to work
-
-
     err_t ret;
 
     ip_addr_t *dnsserver_ip_addr_ptr, dnsserver_ip_addr;
@@ -251,13 +244,13 @@ void wifi_init_sta(void)
     struct hostent *hp;
     struct ip4_addr *ip4_addr;
 
-    char full_URL[] = EXAMPLE_FULL_HOSTNAME;
+    char full_hostname[] = EXAMPLE_FULL_HOSTNAME;
 
 
     // The user can check if the name is in the table with resolv_lookup
     // expect dnslookup to be not found as resolv query has not yet been called
-    my_ip.addr = resolv_lookup(full_URL);
-    if (resolv_lookup(full_URL) != 0){
+    my_ip.addr = resolv_lookup(full_hostname);
+    if (resolv_lookup(full_hostname) != 0){
       ESP_LOGI(TAG, "...IP address from resolv_lookup is: " IPSTR, IP2STR(&my_ip));
     }
     else{
@@ -273,7 +266,7 @@ void wifi_init_sta(void)
 
     //jps_cb is a callback function intended to be called when an ip address
     // is found. it can be called directly from
-    // jps_cb(full_URL, &my_server);
+    // jps_cb(full_hostname, &my_server);
 
     user_cb_fn jps_cb_ptr = &jps_cb;
 
@@ -282,7 +275,7 @@ void wifi_init_sta(void)
     // the table. he table is updated by check entries.
     ESP_LOGI(TAG, "\n");
     ESP_LOGI(TAG, ".Begin Resolv Query");
-    resolv_query(full_URL, jps_cb_ptr);
+    resolv_query(full_hostname, jps_cb_ptr);
 
     ESP_LOGI(TAG, "\n");
     ESP_LOGI(TAG, ".Begin Check Entries");
@@ -296,8 +289,8 @@ void wifi_init_sta(void)
     ESP_LOGI(TAG, ".END Wait");
     ESP_LOGI(TAG, "...Check for ip address from table");
 
-    my_ip.addr = resolv_lookup(full_URL);
-    if (resolv_lookup(full_URL) != 0){
+    my_ip.addr = resolv_lookup(full_hostname);
+    if (resolv_lookup(full_hostname) != 0){
       ESP_LOGI(TAG, "...IP address from resolv_lookup is: " IPSTR, IP2STR(&my_ip));
     }
     else{
@@ -306,11 +299,11 @@ void wifi_init_sta(void)
 
     ESP_LOGI(TAG, "\n");
     ESP_LOGI(TAG, ".Begin gethostbyname");
-    hp = gethostbyname(full_URL);
+    hp = gethostbyname(full_hostname);
 
     ip4_addr = (struct ip4_addr *)hp->h_addr_list[0];
 
-    ESP_LOGI(TAG, "...Gathering DNS records for %s ", full_URL);
+    ESP_LOGI(TAG, "...Gathering DNS records for %s ", full_hostname);
     ESP_LOGI(TAG, "...Address No. 0 from DNS: " IPSTR, IP2STR(ip4_addr));
 
     if (hp->h_addr_list[1] != NULL){
