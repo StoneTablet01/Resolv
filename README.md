@@ -1,7 +1,7 @@
-@mainpage This is the title ...
-# WiFi station example
+@mainpage
+# Example of obtaining "A" type DNS records via WiFi
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+(See the README.md file in the upper level Espressif 'examples' directory for more information about examples.)
 
 
 ## How to use example
@@ -69,7 +69,6 @@ I (599) wifi: wifi driver task: 3ffc08b4, prio:23, stack:3584, core=0
 I (599) system_api: Base MAC address is not set, read default base MAC address from BLK0 of EFUSE
 I (599) system_api: Base MAC address is not set, read default base MAC address from BLK0 of EFUSE
 I (629) wifi: wifi firmware version: 2d94f02
-I (629) wifi: config NVS flash: enabled
 I (629) wifi: config nano formating: disabled
 I (629) wifi: Init dynamic tx buffer num: 32
 I (629) wifi: Init data frame dynamic rx buffer num: 32
@@ -106,3 +105,60 @@ I (8249) wifi station: connect to the AP fail
 I (10299) wifi station: connect to the AP fail
 I (10299) wifi station: Failed to connect to SSID:myssid, password:mypassword
 ```
+
+If Wifi Connects it will get information on the IP address of the DNS server set
+when DHCP address was established, Class A records on the target hostname
+
+I (2091) wifi station: .Information on Netif connection
+I (2101) wifi station: ...Netif is running
+I (2101) wifi station: ...Current IP from netif      : 192.168.1.20
+I (2111) wifi station: ...Current netmask from netif : 255.255.255.0
+I (2121) wifi station: ...Current gateway from netif : 192.168.1.1
+I (2121) wifi station: ...Current Hostname from netif: espressif
+I (2131) wifi station: ...Name Server Primary (netif): 192.168.1.1
+I (2141) wifi station: ...Name Server Sec (netif)    : 0.0.0.0
+I (2141) wifi station: ...Name Serv Fallback (netif) : 0.0.0.0
+I (2151) wifi station: ...Name Server DNS Max        : 0.0.0.0
+I (2161) wifi station:
+
+I (2161) wifi station: .Initialize the Resolver
+I (2171) resolv init : ...dnsserver is                : 192.168.1.1
+I (2171) resolv init : ...udp connected to            : 192.168.1.1
+I (2181) wifi station: ...Returned from resolver init
+I (2191) wifi station: ...DNS server from resolv_getserver is: 192.168.1.1
+I (2191) wifi station: ...IP address from resolv_lookup not found
+I (2201) wifi station:
+
+I (2201) wifi station: .Begin Resolv Query
+I (2211) resolv_query: ...entered resolv query. The name is xmpp.dismail.de
+I (2221) resolv_query: ...build entry for             : xmpp.dismail.de
+I (2221) resolv_query: ...Created record at seq no    : 0
+I (2231) resolv_query: ...Record name is              : xmpp.dismail.de
+I (2241) resolv_query: ...Record state is             : 1
+I (2241) resolv_query: ...Record IP address           : 0.0.0.0
+I (2251) wifi station:
+
+I (2251) wifi station: .Begin Check Entries
+I (2261) chck_entries: ...begin check entries
+I (2261) chck_entries: ...query sent to DNS server
+I (2271) wifi station: .Begin Wait
+I (2441) resolv_recv : ...resolv_recv function called
+I (2441) resolv_recv : ...ID 0
+I (2441) resolv_recv : ...Query 128
+I (2441) resolv_recv : ...Error 0
+I (2451) resolv_recv : ...Num questions 1, answers 1, authrr 0, extrarr 0
+I (2461) resolv_recv : ...Answer IP using memcpy             : 116.203.3.253
+
+I (2461) jps_cb     : ...DNS information for xmpp.dismail.de IP is: 116.203.3.253
+I (3271) wifi station:
+
+I (3271) wifi station: .END Wait
+I (3271) wifi station: ...Check for ip address from table
+I (3271) wifi station: ...IP address from resolv_lookup is: 116.203.3.253
+I (3281) wifi station:
+
+I (3281) wifi station: .Begin gethostbyname
+I (3291) wifi station: ...Gathering DNS records for xmpp.dismail.de
+I (3291) wifi station: ...Address No. 0 from DNS: 116.203.3.253
+I (3301) wifi station: ...Address No. 1 from DNS was null
+I (3301) wifi station: Done with connection... Now shutdown handlers

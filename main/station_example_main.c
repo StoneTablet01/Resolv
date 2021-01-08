@@ -28,13 +28,21 @@
 #include "resolv_jps.h"
 
 /* The examples use WiFi configuration that you can set via project configuration menu
-
    If you'd rather not, just change the below entries to strings with
    the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
 */
 #define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
 #define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
 #define EXAMPLE_ESP_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
+
+/* tHE HOSTNAME that DNS records are desired for is set in the config file as well
+   It can easily be overriden here as well*/
+
+#ifdef CONFIG_FULL_HOSTNAME
+#define EXAMPLE_FULL_HOSTNAME      CONFIG_FULL_HOSTNAME
+#else
+#define EXAMPLE_FULL_HOSTNAME "XMPP.DISMAIL.DE"
+#endif
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -243,7 +251,8 @@ void wifi_init_sta(void)
     struct hostent *hp;
     struct ip4_addr *ip4_addr;
 
-    char full_URL[] = "xmpp.dismail.de";
+    char full_URL[] = EXAMPLE_FULL_HOSTNAME;
+
 
     // The user can check if the name is in the table with resolv_lookup
     // expect dnslookup to be not found as resolv query has not yet been called
