@@ -123,8 +123,8 @@ CONFIG_PARTITION_TABLE_MD5=y
 #
 # Example Configuration
 #
-CONFIG_ESP_WIFI_SSID="FCAA7E 2.4"
-CONFIG_ESP_WIFI_PASSWORD="TBW48AD601149"
+CONFIG_ESP_WIFI_SSID="MySpectrumWiFi30-2G"
+CONFIG_ESP_WIFI_PASSWORD="quickapple991"
 CONFIG_ESP_MAXIMUM_RETRY=5
 # end of Example Configuration
 
@@ -203,6 +203,12 @@ CONFIG_SPI_MASTER_ISR_IN_IRAM=y
 # CONFIG_SPI_SLAVE_IN_IRAM is not set
 CONFIG_SPI_SLAVE_ISR_IN_IRAM=y
 # end of SPI configuration
+
+#
+# TWAI configuration
+#
+# CONFIG_TWAI_ISR_IN_IRAM is not set
+# end of TWAI configuration
 
 #
 # UART configuration
