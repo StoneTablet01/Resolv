@@ -61,10 +61,10 @@ resolv_init(ip_addr_t *dnsserver_ip_addr_ptr); /* working to pass ip_addr_t*/
 /** @brief Enter a request to get information for a hostname into the dns table
   *
   * @param name pointer to a character array containing the hostname
-  * @param jps_cb_ptr optional user secified callback function when an IP address is received
+  * @param sti_cb_ptr optional user secified callback function when an IP address is received
   * @returns void
   **/
-void resolv_query(char *name, user_cb_fn jps_cb_ptr);
+void resolv_query(char *name, user_cb_fn sti_cb_ptr);
 
 /** @brief Look up a hostname in the array of known hostnames
   *

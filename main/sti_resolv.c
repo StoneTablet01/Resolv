@@ -170,7 +170,7 @@ static struct udp_pcb *resolv_pcb = NULL; /**< UDP connection to DNS server */
 static struct ip4_addr serverIP; /**<the adress of the DNS server to use */
 static u8_t initFlag; /**< set to 1 if initialized*/
 
-//JPS Test Line follows
+//sti Test Line follows
 struct ip_addr ipaddr1;
 
 /** Parse_Name finds the end of QNAME.
@@ -398,7 +398,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
  *
  *---------------------------------------------------------------------------*/
 
-void resolv_query(char *name, user_cb_fn jps_cb_ptr){
+void resolv_query(char *name, user_cb_fn sti_cb_ptr){
 
 static const char *TAG = "resolv_query";
 static u8_t i;
@@ -411,13 +411,13 @@ lseqi = 0;
 
 ESP_LOGI(TAG, "...build entry for             : %s", name );
 
-//JPS Code to enter info into the table
+//sti Code to enter info into the table
 for (i = 0; i < LWIP_RESOLV_ENTRIES; ++i){
   pEntry = &dns_table[i];
   lseqi = i;
   if (pEntry->state == STATE_UNUSED){
     strcpy(pEntry->name, name);
-    pEntry->found = jps_cb_ptr;
+    pEntry->found = sti_cb_ptr;
     pEntry->state = STATE_NEW;
     pEntry->seqno = lseqi;
     break;
