@@ -66,6 +66,14 @@ resolv_init(ip_addr_t *dnsserver_ip_addr_ptr); /* working to pass ip_addr_t*/
   **/
 void resolv_query(char *name, user_cb_fn sti_cb_ptr);
 
+/** @brief a full function resolv query
+  * this function allows small computers to get a return
+  * buffer from the dns server
+  */
+int
+res_query_jps(const char *dname, int class, int type, unsigned char *answer, int anslen);
+
+
 /** @brief Look up a hostname in the array of known hostnames
   *
   * Iterate through the table of DNS entries. If there are new entries, create and

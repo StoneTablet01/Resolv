@@ -253,12 +253,14 @@ void wifi_init_sta(void)
       ESP_LOGI(TAG, "...IP address from resolv_lookup not found");
     }
 
+    /* create test call to resolv_query_jps */
+    unsigned char an[10];
+    int anslen = 0;
+    int res;
 
-
-
-    // experimenting with callbacks
-    // first directly call the callback as a typical function
-    // Then create a pointer to the user callback function
+    res = res_query_jps(full_hostname, 1, 1, an, anslen);
+    ESP_LOGI(TAG, "...result of res_query_jps %d", res);
+    ESP_LOGI(TAG, "...End res_query_jps");
 
     //sti_cb is a callback function intended to be called when an ip address
     // is found. it can be called directly from

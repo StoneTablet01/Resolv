@@ -95,6 +95,12 @@
 #define DNS_SERVER_PORT 53
 #endif
 
+
+#define MESSAGE_HEADER_LEN 12
+#define MESSAGE_RESPONSE 1
+#define MESSAGE_T_SRV 33
+#define MESSAGE_C_IN 1
+
 /** @brief The DNS message header. \n
   The DNS header is 12 8-bit bytes and is defined in RFC-1035\n
   The header is used to send queries to DNS server. The header is also part of
@@ -291,6 +297,75 @@ check_entries(void)
       break;
     }
   }
+}
+
+/**create a query buffer
+ * The res_query_jps() function provides an interface to the server query mechanism.
+ * It constructs a query, sends it to the local server, awaits a response, and
+ * makes preliminary checks on the reply. The query requests information of the
+ * specified type and class for the specified fully-qualified domain name dname.
+ * The reply message is left in the answer buffer with length anslen supplied
+ * by the caller.
+ *
+ *
+ */
+//struct * pbuf()
+//int
+//len = res_query_jps(fulldomain, MESSAGE_C_IN, MESSAGE_T_SRV, buf,
+//                RESOLVER_BUF_MAX);
+
+int res_query_jps(const char *dname, int class, int type, unsigned char *answer, int anslen){
+  static const char *TAG = "res_query_jps";
+  ESP_LOGI(TAG, "");
+  ESP_LOGI(TAG, ".Begin res_query_jps function");
+  int i = 99;
+  static u8_t n;
+  DNS_HDR *hdr;
+  struct pbuf *p;
+  char *query, *nptr, *pHostname;
+
+  p = pbuf_alloc(PBUF_TRANSPORT, sizeof(DNS_HDR)+MAX_NAME_LENGTH+5, PBUF_RAM);
+  hdr = (DNS_HDR *)p->payload;
+  memset(hdr, 0, sizeof(DNS_HDR));
+
+  /* Fill in header information observing Big Endian / Little Endian considerations*/
+
+  hdr->id = htons(99);
+  hdr->flags1 = DNS_FLAG1_RD; //This is 8bits so no need to worry about htons
+  hdr->numquestions = htons(1);
+  query = (char *)hdr + sizeof(DNS_HDR);
+
+  /* Convert hostname into suitable query format. */
+  pHostname = dname;
+  int qname_len = 0;
+  do
+  {
+    ++pHostname;
+    nptr = query;
+    ++query;
+    for(n = 0; *pHostname != '.' && *pHostname != 0; ++pHostname)
+    {
+      *query = *pHostname;
+      ++query;
+      ++n;
+      qname_len ++;
+    }
+    *nptr = n;
+    qname_len ++;
+  }
+  while(*pHostname != 0);
+
+  static unsigned char endquery[] = {0,0,1,0,1};
+  // write a trailing 0 on qname and write q_type and q_class
+  // order is MSB, LSB (network)
+  memcpy(query, endquery, 5);
+
+  //pbuf_realloc(p, qname_len + 12 + 5);
+  pbuf_realloc(p, sizeof(DNS_HDR) + qname_len + 5);
+  udp_send(resolv_pcb, p);
+  ESP_LOGI(TAG, "...query sent to DNS server" );
+  pbuf_free(p);
+  return i;
 }
 
 /*---------------------------------------------------------------------------*
