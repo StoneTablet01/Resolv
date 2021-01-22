@@ -175,6 +175,8 @@ static u8_t seqno = 0;
 static struct udp_pcb *resolv_pcb = NULL; /**< UDP connection to DNS server */
 static struct ip4_addr serverIP; /**<the adress of the DNS server to use */
 static u8_t initFlag; /**< set to 1 if initialized*/
+static u8_t respFlag = 0; /**< set to 1 if responce received*/
+static u8_t payload_len = 0; /**< length of the received payload buffer*/
 
 //sti Test Line follows
 struct ip_addr ipaddr1;
@@ -322,7 +324,8 @@ int res_query_jps(const char *dname, int class, int type, unsigned char *answer,
   static u8_t n;
   DNS_HDR *hdr;
   struct pbuf *p;
-  char *query, *nptr, *pHostname;
+  char *query, *nptr;
+  const char *pHostname;
 
   p = pbuf_alloc(PBUF_TRANSPORT, sizeof(DNS_HDR)+MAX_NAME_LENGTH+5, PBUF_RAM);
   hdr = (DNS_HDR *)p->payload;
@@ -337,6 +340,7 @@ int res_query_jps(const char *dname, int class, int type, unsigned char *answer,
 
   /* Convert hostname into suitable query format. */
   pHostname = dname;
+  --pHostname;
   int qname_len = 0;
   do
   {
@@ -365,8 +369,11 @@ int res_query_jps(const char *dname, int class, int type, unsigned char *answer,
   udp_send(resolv_pcb, p);
   ESP_LOGI(TAG, "...query sent to DNS server" );
   pbuf_free(p);
+  ESP_LOGI(TAG, "...resp flag = %d", respFlag);
 
   vTaskDelay(1000 / portTICK_PERIOD_MS);
+  ESP_LOGI(TAG, "...resp flag = %d", respFlag);
+  ESP_LOGI(TAG, "...payload length = %d", payload_len);
   return i;
 }
 
@@ -390,6 +397,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   static u8_t nanswers;
   static u8_t i;
   register DNS_TABLE_ENTRY *pEntry;
+  respFlag = 1;
 
   hdr = (DNS_HDR *)p->payload;
   ESP_LOGI(TAG, "...ID %d", htons(hdr->id));
@@ -400,6 +408,14 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
     htons(hdr->numanswers),
     htons(hdr->numauthrr),
     htons(hdr->numextrarr));
+
+  // next section if only asking for id 99 - no need to do anything with tables
+
+  if(htons(hdr->id) == 99){
+    ESP_LOGI(TAG, "...Work on ID %d", htons(hdr->id));
+    payload_len = 12; /*header length*/
+    return;
+  }
 
   /* The ID in the DNS header should be our entry into the name table. */
   i = htons(hdr->id);
