@@ -116,4 +116,10 @@ resolv_getserver(void);
 void
 check_entries(void);
 
+/** @brief parse_qname_length() - Walk through the encoded answer buffer and return
+ * the length of the encoded name in chars.
+ *---------------------------------------------------------------------------*/
+int
+parse_qname_length(unsigned char *name_ptr);
+
 #endif /* STI_RESOLV_H */

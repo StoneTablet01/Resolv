@@ -210,6 +210,24 @@ parse_name(unsigned char *query)
   return query + 1;
 }
 
+/*---------------------------------------------------------------------------
+ * parse_qname_length() - Walk through the encoded answer buffer and return
+ * the length of the encoded name in chars.
+ *---------------------------------------------------------------------------*/
+int
+parse_qname_length(unsigned char *name_ptr){
+  int subname_len;
+  int encoded_name_len =0;
+
+  while(*name_ptr != 0 && encoded_name_len < MAX_NAME_LENGTH - 1){
+    subname_len = (int) *name_ptr; //first item is the length of the first subname
+    encoded_name_len += (subname_len + 1);
+    name_ptr+= (subname_len + 1);
+    }
+  encoded_name_len++;
+  return encoded_name_len;
+}
+
 void
 check_entries(void)
 {
@@ -374,7 +392,7 @@ int res_query_jps(const char *dname, int class, int type, unsigned char *answer,
   vTaskDelay(1000 / portTICK_PERIOD_MS);
   ESP_LOGI(TAG, "...resp flag = %d", respFlag);
   ESP_LOGI(TAG, "...payload length = %d", payload_len);
-  return i;
+  return payload_len;
 }
 
 /*---------------------------------------------------------------------------*
@@ -390,6 +408,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   ESP_LOGI(TAG, "...resolv_recv function called");
 
   char *pHostname;
+  //const char *aHostname; /*pointer for parsing returned buffer*/
   DNS_ANSWER *ans;
   DNS_HDR *hdr;
 
@@ -414,6 +433,51 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   if(htons(hdr->id) == 99){
     ESP_LOGI(TAG, "...Work on ID %d", htons(hdr->id));
     payload_len = 12; /*header length*/
+    payload_len += parse_qname_length((unsigned char *)p->payload + 12); /*qname len*/
+    payload_len += 4; /* Query Type and Query Class*/
+    pHostname = p->payload + payload_len;
+    nanswers = htons(hdr->numanswers);
+
+    while(nanswers > 0){
+      /* The first byte in the answer resource record determines if it
+         is a compressed record or a normal one. */
+      if(*pHostname & 0xc0)
+      { /* Compressed name. */
+        pHostname +=2;
+        payload_len += 2; /*2 bytes for flag and offet*/
+        printf("Compressed answer\n");
+      }
+      else
+      {
+        printf("Not Compressed answer\n");
+        payload_len += parse_qname_length((unsigned char *)p->payload + payload_len);
+        pHostname += payload_len;
+      }
+      ans = (DNS_ANSWER *)pHostname;
+      printf("Answer: type %x, class %x, ttl %x, length %x\n",
+         htons(ans->type), htons(ans->class), (htons(ans->ttl[0])
+           << 16) | htons(ans->ttl[1]), htons(ans->len));
+
+      if((htons(ans->type) == 1) && (htons(ans->class) == 1) && (htons(ans->len) == 4) ){
+        payload_len += sizeof(DNS_ANSWER);
+
+        /*check received buffer by printing out
+        char * buf_char_ptr;
+        buf_char_ptr = (char *) p->payload;
+        for (int i=0; i < payload_len; ++i){
+          if ((*buf_char_ptr > 64 && *buf_char_ptr <91) ||
+            (*buf_char_ptr > 96 && *buf_char_ptr <123)){
+            ESP_LOGI(TAG, "....%d Letter in received buffer: %c", i+1, *buf_char_ptr);
+          }
+          else{
+            ESP_LOGI(TAG, "....%d Hex in received buffer   : %X", i+1, *buf_char_ptr);
+          }
+          buf_char_ptr++;
+        } // check printer buffer end */
+      }
+      --nanswers;
+    }
+    //pHostname = (char *) parse_name((unsigned char *)p->payload + 12) + 4;
     return;
   }
 
