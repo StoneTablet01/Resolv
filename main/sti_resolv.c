@@ -365,6 +365,8 @@ int res_query_jps(const char *dname, int class, int type, unsigned char *answer,
   udp_send(resolv_pcb, p);
   ESP_LOGI(TAG, "...query sent to DNS server" );
   pbuf_free(p);
+
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
   return i;
 }
 
