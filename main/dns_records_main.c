@@ -254,11 +254,26 @@ void wifi_init_sta(void)
     }
 
     /* create test call to resolv_query_jps */
-    unsigned char an[10];
+    unsigned char an[100];
     int anslen = 0;
     int res;
 
     res = res_query_jps(full_hostname, 1, 1, an, anslen);
+
+    /*check received buffer by printing out*/
+    unsigned char * buf_char_ptr;
+    buf_char_ptr = &an[0];
+    for (int i=0; i < res; ++i){
+      if ((*buf_char_ptr > 64 && *buf_char_ptr <91) ||
+        (*buf_char_ptr > 96 && *buf_char_ptr <123)){
+        ESP_LOGI(TAG, "....%d Letter in received buffer: %c", i+1, *buf_char_ptr);
+      }
+      else{
+        ESP_LOGI(TAG, "....%d Hex in received buffer   : %X", i+1, *buf_char_ptr);
+      }
+      buf_char_ptr++;
+    } // check printer buffer end
+
     ESP_LOGI(TAG, "...result of res_query_jps %d", res);
     ESP_LOGI(TAG, "...End res_query_jps");
 

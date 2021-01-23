@@ -338,7 +338,7 @@ int res_query_jps(const char *dname, int class, int type, unsigned char *answer,
   static const char *TAG = "res_query_jps";
   ESP_LOGI(TAG, "");
   ESP_LOGI(TAG, ".Begin res_query_jps function");
-  int i = 99;
+  //int i = 99;
   static u8_t n;
   DNS_HDR *hdr;
   struct pbuf *p;
@@ -392,6 +392,22 @@ int res_query_jps(const char *dname, int class, int type, unsigned char *answer,
   vTaskDelay(1000 / portTICK_PERIOD_MS);
   ESP_LOGI(TAG, "...resp flag = %d", respFlag);
   ESP_LOGI(TAG, "...payload length = %d", payload_len);
+
+  /*check received buffer by printing out
+  char * buf_char_ptr;
+  buf_char_ptr = (char *) p->payload;
+  for (int i=0; i < payload_len; ++i){
+    if ((*buf_char_ptr > 64 && *buf_char_ptr <91) ||
+      (*buf_char_ptr > 96 && *buf_char_ptr <123)){
+      ESP_LOGI(TAG, "....%d Letter in received buffer: %c", i+1, *buf_char_ptr);
+    }
+    else{
+      ESP_LOGI(TAG, "....%d Hex in received buffer   : %X", i+1, *buf_char_ptr);
+    }
+    buf_char_ptr++;
+  } // check printer buffer end */
+
+  memcpy(answer, p->payload, payload_len);
   return payload_len;
 }
 
@@ -445,18 +461,18 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
       { /* Compressed name. */
         pHostname +=2;
         payload_len += 2; /*2 bytes for flag and offet*/
-        printf("Compressed answer\n");
+        /* printf("Compressed answer\n");*/
       }
       else
       {
-        printf("Not Compressed answer\n");
+        /* printf("Not Compressed answer\n"); */
         payload_len += parse_qname_length((unsigned char *)p->payload + payload_len);
         pHostname += payload_len;
       }
       ans = (DNS_ANSWER *)pHostname;
-      printf("Answer: type %x, class %x, ttl %x, length %x\n",
+      /* printf("Answer: type %x, class %x, ttl %x, length %x\n",
          htons(ans->type), htons(ans->class), (htons(ans->ttl[0])
-           << 16) | htons(ans->ttl[1]), htons(ans->len));
+           << 16) | htons(ans->ttl[1]), htons(ans->len)); */
 
       if((htons(ans->type) == 1) && (htons(ans->class) == 1) && (htons(ans->len) == 4) ){
         payload_len += sizeof(DNS_ANSWER);
