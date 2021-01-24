@@ -255,6 +255,7 @@ void wifi_init_sta(void)
 
     /* create test call to resolv_query_jps */
     unsigned char an[100];
+    memset(an,0,100);
     int anslen = 0;
     int res;
 
@@ -262,8 +263,8 @@ void wifi_init_sta(void)
 
     /*check received buffer by printing out*/
     unsigned char * buf_char_ptr;
-    buf_char_ptr = &an[0];
-    for (int i=0; i < res; ++i){
+    buf_char_ptr = an;
+    for (int i=0; i < res; i++){
       if ((*buf_char_ptr > 64 && *buf_char_ptr <91) ||
         (*buf_char_ptr > 96 && *buf_char_ptr <123)){
         ESP_LOGI(TAG, "....%d Letter in received buffer: %c", i+1, *buf_char_ptr);
@@ -276,6 +277,9 @@ void wifi_init_sta(void)
 
     ESP_LOGI(TAG, "...result of res_query_jps %d", res);
     ESP_LOGI(TAG, "...End res_query_jps");
+
+    // Now try for an SRV record
+    // _xmpp-client._tcp.dismail.de
 
     //sti_cb is a callback function intended to be called when an ip address
     // is found. it can be called directly from

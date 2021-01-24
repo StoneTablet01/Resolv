@@ -101,6 +101,8 @@
 #define MESSAGE_T_SRV 33
 #define MESSAGE_C_IN 1
 
+#define MAX_DOMAIN_LEN 25
+
 /** @brief The DNS message header. \n
   The DNS header is 12 8-bit bytes and is defined in RFC-1035\n
   The header is used to send queries to DNS server. The header is also part of
@@ -148,6 +150,17 @@ typedef struct s_dns_answer {
   u16_t len; /**< The length of the RDATA field. Four (4) for IP4 addresses */
   char ipchars[4]; /**< IPaddr organized as four addresses (ie. 192.168.1.1) in BE format */
 } DNS_ANSWER;
+
+/** @brief DNS answer RR structure for "SRV" type record requests.
+  *
+  */
+typedef struct resolver_srv_rr_struc {
+    uint16_t priority;
+    uint16_t weight;
+    uint16_t port;
+    char target[MAX_DOMAIN_LEN];
+    struct resolver_srv_rr_struc *next;
+} resolver_srv_rr_t;
 
 /** @brief Hostnames and DNS results information Table entry\n
   *Whenever a DNS search is requested for a hostname, an entry is created in the dns table.
