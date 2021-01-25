@@ -196,8 +196,6 @@ void wifi_init_sta(void)
 
     //Get all connections, but save the primary as an ip4_addr
     struct ip4_addr my_server, my_ip;
-    //struct ip_addr local;
-    //IP4_ADDR(&local,127,0,0,1); // Set local = "127.0.0.1"
 
     esp_netif_get_dns_info(esp_netif_handle, ask_for_primary, &dns_info);
     ESP_LOGI(TAG, "...Name Server Primary (netif): " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
@@ -219,6 +217,12 @@ void wifi_init_sta(void)
     dnsserver_ip_addr_ptr->type = IPADDR_TYPE_V4;
     dnsserver_ip_addr_ptr->u_addr.ip4.addr = my_server.addr;
 
+    struct ip4_addr temp;
+    ip_addr_t better_dns;
+    better_dns.type = IPADDR_TYPE_V4;
+    IP4_ADDR(&temp,8,8,8,8); // 71.10.216.2
+    better_dns.u_addr.ip4.addr = temp.addr;
+
     /*
     //examples of using the unified ip_addr_t in printing.
     //first print a ip4_addr, then print the ip_addr_t with . then
@@ -229,7 +233,8 @@ void wifi_init_sta(void)
     */
     ESP_LOGI(TAG, "\n");
     ESP_LOGI(TAG, ".Initialize the Resolver");
-    ret = resolv_init(dnsserver_ip_addr_ptr);
+    //ret = resolv_init(dnsserver_ip_addr_ptr);
+    ret = resolv_init(&better_dns);
     if (ret < 0 ){
       ESP_LOGI(TAG, "... Error initializing resolver " );
     }
