@@ -44,6 +44,11 @@
 #define EXAMPLE_FULL_HOSTNAME "XMPP.DISMAIL.DE"
 #endif
 
+//#define MESSAGE_HEADER_LEN 12
+#define MESSAGE_T_A 1 /* Message Type request is for type A DNS record*/
+#define MESSAGE_T_SRV 33 /* Message Type Request is for SRV records*/
+#define MESSAGE_C_IN 1 /* Message class is Internet */
+
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
 
@@ -191,6 +196,8 @@ void wifi_init_sta(void)
 
     //Get all connections, but save the primary as an ip4_addr
     struct ip4_addr my_server, my_ip;
+    //struct ip_addr local;
+    //IP4_ADDR(&local,127,0,0,1); // Set local = "127.0.0.1"
 
     esp_netif_get_dns_info(esp_netif_handle, ask_for_primary, &dns_info);
     ESP_LOGI(TAG, "...Name Server Primary (netif): " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
@@ -241,6 +248,7 @@ void wifi_init_sta(void)
     struct ip4_addr *ip4_addr;
 
     char full_hostname[] = EXAMPLE_FULL_HOSTNAME;
+    char full_hostname_1[] = "_xmpp-client._tcp.dismail.de";
 
 
     // The user can check if the name is in the table with resolv_lookup
@@ -259,9 +267,9 @@ void wifi_init_sta(void)
     int anslen = 0;
     int res;
 
-    res = res_query_jps(full_hostname, 1, 1, an, anslen);
+    res = res_query_jps(full_hostname, MESSAGE_C_IN, MESSAGE_T_A, an, anslen);
 
-    /*check received buffer by printing out*/
+    /*check received buffer by printing out
     unsigned char * buf_char_ptr;
     buf_char_ptr = an;
     for (int i=0; i < res; i++){
@@ -273,13 +281,21 @@ void wifi_init_sta(void)
         ESP_LOGI(TAG, "....%d Hex in received buffer   : %X", i+1, *buf_char_ptr);
       }
       buf_char_ptr++;
-    } // check printer buffer end
+    } // check printer buffer end */
 
-    ESP_LOGI(TAG, "...result of res_query_jps %d", res);
-    ESP_LOGI(TAG, "...End res_query_jps");
+    ESP_LOGI(TAG, "...length of res_query_jps returned buffer %d", res);
+    ESP_LOGI(TAG, "...End res_query_jps for type A records");
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     // Now try for an SRV record
-    // _xmpp-client._tcp.dismail.de
+
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, "...Start of res_query_jps for SRV records");
+
+    res = res_query_jps(full_hostname_1, MESSAGE_C_IN, MESSAGE_T_SRV, an, anslen);
+
+    ESP_LOGI(TAG, "...length of res_query_jps returned buffer %d", res);
+    ESP_LOGI(TAG, "...End res_query_jps for SRV records");
 
     //sti_cb is a callback function intended to be called when an ip address
     // is found. it can be called directly from

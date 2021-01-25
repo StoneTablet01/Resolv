@@ -467,6 +467,20 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
     pHostname = p->payload + payload_len;
     nanswers = htons(hdr->numanswers);
 
+    /*check received buffer by printing out*/
+    char * buf_char_ptr;
+    buf_char_ptr = (char *) p->payload;
+    for (int i=0; i < 100; i++){
+      if ((*buf_char_ptr > 64 && *buf_char_ptr <91) ||
+        (*buf_char_ptr > 96 && *buf_char_ptr <123)){
+        ESP_LOGI(TAG, "....%d Letter in received buffer: %c", i+1, *buf_char_ptr);
+      }
+      else{
+        ESP_LOGI(TAG, "....%d Hex in received buffer   : %X", i+1, *buf_char_ptr);
+      }
+      buf_char_ptr++;
+    } // check printer buffer end
+
     while(nanswers > 0){
       /* The first byte in the answer resource record determines if it
          is a compressed record or a normal one. */
@@ -483,9 +497,9 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
         pHostname += payload_len;
       }
       ans = (DNS_ANSWER *)pHostname;
-      /* printf("Answer: type %x, class %x, ttl %x, length %x\n",
+      printf("Answer: type %x, class %x, ttl %x, length %x\n",
          htons(ans->type), htons(ans->class), (htons(ans->ttl[0])
-           << 16) | htons(ans->ttl[1]), htons(ans->len)); */
+           << 16) | htons(ans->ttl[1]), htons(ans->len));
 
       if((htons(ans->type) == 1) && (htons(ans->class) == 1) && (htons(ans->len) == 4) ){
         payload_len += sizeof(DNS_ANSWER);
