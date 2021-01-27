@@ -272,6 +272,8 @@ void wifi_init_sta(void)
     int anslen = 0;
     int res;
 
+    /* Message class is Internet */
+    /* Message Type request is for type A DNS record*/
     res = res_query_jps(full_hostname, MESSAGE_C_IN, MESSAGE_T_A, an, anslen);
 
     /*check received buffer by printing out
@@ -297,6 +299,9 @@ void wifi_init_sta(void)
     ESP_LOGI(TAG, "");
     ESP_LOGI(TAG, "...Start of res_query_jps for SRV records");
 
+    memset(an,0,100); // re-initialize an to zero
+    /* Message class is Internet */
+    /* Message Type Request is for SRV records*/
     res = res_query_jps(full_hostname_1, MESSAGE_C_IN, MESSAGE_T_SRV, an, anslen);
 
     ESP_LOGI(TAG, "...length of res_query_jps returned buffer %d", res);

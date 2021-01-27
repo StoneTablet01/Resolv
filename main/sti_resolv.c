@@ -390,7 +390,12 @@ int res_query_jps(const char *dname, int class, int type, unsigned char *answer,
   }
   while(*pHostname != 0);
 
+  // complete the question by (1) terminating the QNAME with a 0, (2) specifying
+  // QTYPE and (3) specifying QCLASS
   static unsigned char endquery[] = {0,0,1,0,1};
+  endquery[2] = (unsigned char) type;
+  endquery[4] = (unsigned char) class;
+  ESP_LOGI(TAG, "...appending qtype = %X class %X", endquery[2], endquery[4]);
   // write a trailing 0 on qname and write q_type and q_class
   // order is MSB, LSB (network)
   memcpy(query, endquery, 5);
@@ -464,13 +469,13 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
     payload_len = 12; /*header length*/
     payload_len += parse_qname_length((unsigned char *)p->payload + 12); /*qname len*/
     payload_len += 4; /* Query Type and Query Class*/
-    pHostname = p->payload + payload_len;
+    pHostname = p->payload + payload_len; //pHostname now points to the start of the RR
     nanswers = htons(hdr->numanswers);
 
     /*check received buffer by printing out*/
     char * buf_char_ptr;
     buf_char_ptr = (char *) p->payload;
-    for (int i=0; i < 100; i++){
+    for (int i=0; i < 88; i++){
       if ((*buf_char_ptr > 64 && *buf_char_ptr <91) ||
         (*buf_char_ptr > 96 && *buf_char_ptr <123)){
         ESP_LOGI(TAG, "....%d Letter in received buffer: %c", i+1, *buf_char_ptr);
