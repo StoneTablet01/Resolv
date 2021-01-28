@@ -190,9 +190,28 @@ static struct ip4_addr serverIP; /**<the adress of the DNS server to use */
 static u8_t initFlag; /**< set to 1 if initialized*/
 static u8_t respFlag = 0; /**< set to 1 if responce received*/
 static u8_t payload_len = 0; /**< length of the received payload buffer*/
+static void* pay_buf;
 
 //sti Test Line follows
 struct ip_addr ipaddr1;
+
+/** print_buf prints out a buffer. This makes it easier to troubleshoot
+  * buffers sent or ceived from the DNS server */
+void print_buf(unsigned char *buf, int length) {
+  unsigned char * buf_char_ptr;
+  static const char *TAG = "print_buf   ";
+  buf_char_ptr = buf;
+  for (int i=0; i < length; i++){
+    if ((*buf_char_ptr > 64 && *buf_char_ptr <91) ||
+      (*buf_char_ptr > 96 && *buf_char_ptr <123)){
+      ESP_LOGI(TAG, "....%d Letter in received buffer: %c", i+1, *buf_char_ptr);
+    }
+    else{
+      ESP_LOGI(TAG, "....%d Hex in received buffer   : %X", i+1, *buf_char_ptr);
+    }
+    buf_char_ptr++;
+  } // check printer buffer end *
+}
 
 /** Parse_Name finds the end of QNAME.
   * The DNS RFC-1035 specification requires hostnames to be specially encoded.
@@ -412,27 +431,25 @@ res_query_jps(const char *dname, int class, int type, unsigned char *answer, int
   udp_send(resolv_pcb, p);
   ESP_LOGI(TAG, "...query sent to DNS server" );
   pbuf_free(p);
-  ESP_LOGI(TAG, "...resp flag = %d", respFlag);
+  //ESP_LOGI(TAG, "...resp flag = %d", respFlag);
 
-  vTaskDelay(1000 / portTICK_PERIOD_MS);
-  ESP_LOGI(TAG, "...resp flag = %d", respFlag);
+  for (int time =0; time < 10; time++){
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+    if (respFlag == 1){
+      break;
+    }
+  }
+  if ( respFlag != 1){
+    return 0;
+  }
+
+  //ESP_LOGI(TAG, "...resp flag = %d", respFlag);
   ESP_LOGI(TAG, "...payload length = %d", payload_len);
-
-  /*check received buffer by printing out
-  char * buf_char_ptr;
-  buf_char_ptr = (char *) p->payload;
-  for (int i=0; i < payload_len; ++i){
-    if ((*buf_char_ptr > 64 && *buf_char_ptr <91) ||
-      (*buf_char_ptr > 96 && *buf_char_ptr <123)){
-      ESP_LOGI(TAG, "....%d Letter in received buffer: %c", i+1, *buf_char_ptr);
-    }
-    else{
-      ESP_LOGI(TAG, "....%d Hex in received buffer   : %X", i+1, *buf_char_ptr);
-    }
-    buf_char_ptr++;
-  } // check printer buffer end */
-
-  memcpy(answer, p->payload, payload_len);
+  //ESP_LOGI(TAG, "...Now memcpy data");
+  memcpy(answer, pay_buf, payload_len);
+  //ESP_LOGI(TAG, "...Now memcpy completed");
+  //pbuf_free(p);
+  //ESP_LOGI(TAG, "...pbuf freed");
   return payload_len;
 }
 
@@ -457,7 +474,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   static u8_t nanswers;
   static u8_t i;
   register DNS_TABLE_ENTRY *pEntry;
-  unsigned char * buf_char_ptr;
+  //unsigned char * buf_char_ptr;
   respFlag = 1;
 
   hdr = (DNS_HDR *)p->payload;
@@ -485,7 +502,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
 
       int rr_name_len =0; //resource record name length
       rr_name_len = get_qname_len( (unsigned char *) pHostname);
-      ESP_LOGI(TAG, "....rr_name_len = %d", rr_name_len);
+      //ESP_LOGI(TAG, "....rr_name_len = %d", rr_name_len);
       payload_len += rr_name_len;
       pHostname += rr_name_len; //phostname now points to first byte Post Hostname in RR
 
@@ -494,36 +511,20 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
          htons(ans->type), htons(ans->class), (htons(ans->ttl[0])
            << 16) | htons(ans->ttl[1]), htons(ans->len)); */
 
+      /* dtermine if the anser is for an A type query or and SRV query */
       if((htons(ans->type) == 1) && (htons(ans->class) == 1) && (htons(ans->len) == 4) ){
         payload_len += sizeof(DNS_ANSWER);
-        ESP_LOGI(TAG, "....Header + Question + Name + DNS_Answer  length %d", payload_len);
-
-
+        //ESP_LOGI(TAG, "....Header + Question + Name + DNS_Answer  length %d", payload_len);
       }
       else{
         if((htons(ans->type) == 33) && (htons(ans->class) == 1) ){
           payload_len += (sizeof(DNS_ANSWER) - 4 + htons(ans->len));
-          ESP_LOGI(TAG, "....Header + Question + Compressed Name length %d", payload_len);
+          //ESP_LOGI(TAG, "....Header + Question + Compressed Name length %d", payload_len);
         }
       }
-
-      /* check received buffer by printing out */
-
-      buf_char_ptr = (unsigned char *) p->payload;
-      for (int i=0; i < payload_len; ++i){
-        if ((*buf_char_ptr > 64 && *buf_char_ptr <91) ||
-          (*buf_char_ptr > 96 && *buf_char_ptr <123)){
-          ESP_LOGI(TAG, "....%d Letter in received buffer: %c", i+1, *buf_char_ptr);
-        }
-        else{
-          ESP_LOGI(TAG, "....%d Hex in received buffer   : %X", i+1, *buf_char_ptr);
-        }
-        buf_char_ptr++;
-      } // check printer buffer end
-
       --nanswers;
     }
-    //pHostname = (char *) parse_name((unsigned char *)p->payload + 12) + 4;
+    pay_buf = p->payload;
     return;
   }
 

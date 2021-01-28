@@ -122,4 +122,8 @@ check_entries(void);
 int
 get_qname_len(unsigned char *name_ptr);
 
+/** print_buf prints out a buffer. This makes it easier to troubleshoot
+  * buffers sent or ceived from the DNS server */
+void print_buf(unsigned char *buf, int length);
+
 #endif /* STI_RESOLV_H */
