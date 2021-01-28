@@ -120,6 +120,6 @@ check_entries(void);
  * the length of the encoded name in chars.
  *---------------------------------------------------------------------------*/
 int
-get_qname_len(struct pbuf *p, unsigned char *name_ptr);
+get_qname_len(unsigned char *name_ptr);
 
 #endif /* STI_RESOLV_H */

@@ -223,20 +223,33 @@ parse_name(unsigned char *query)
   return query + 1;
 }
 
-/*---------------------------------------------------------------------------
- * get_qname_len() - Walk through the encoded answer buffer and return
- * the length of the encoded name in chars.
+/** @brief * get_qname_len() - Walk through the encoded answer buffer and return
+ * the length of the encoded name in chars. length of zero indicates a Problem
+ * condition
  *---------------------------------------------------------------------------*/
 int
-get_qname_len(struct pbuf *p, unsigned char *name_ptr){
+get_qname_len(unsigned char *name_ptr){
 
   int qname_len =0;
 
-  while(*name_ptr != 0 && qname_len < MAX_NAME_LENGTH - 1){
-    qname_len += (*name_ptr + 1);
-    name_ptr+= (*name_ptr + 1);
+  while(qname_len < MAX_NAME_LENGTH){
+    if (*name_ptr == 0){
+      qname_len++;
+      break;
     }
-  qname_len++;
+    else if (*name_ptr == 0xC0){
+      qname_len += 2;
+      break;
+    }
+    else{
+      qname_len += (*name_ptr + 1);
+      name_ptr += (*name_ptr + 1);
+    }
+  } //end while loop
+
+  if (qname_len == MAX_NAME_LENGTH){
+    qname_len = 0;
+  }
   return qname_len;
 }
 
@@ -331,20 +344,15 @@ check_entries(void)
   }
 }
 
-/**create a query buffer
+/**Querry a DNS server and return a buffer with the answer(s)
  * The res_query_jps() function provides an interface to the server query mechanism.
- * It constructs a query, sends it to the local server, awaits a response, and
+ * It constructs a query, sends it to the DNS server, awaits a response, and
  * makes preliminary checks on the reply. The query requests information of the
  * specified type and class for the specified fully-qualified domain name dname.
- * The reply message is left in the answer buffer with length anslen supplied
- * by the caller.
+ * The reply message is left in the answer buffer
  *
  *
  */
-//struct * pbuf()
-//int
-//len = res_query_jps(fulldomain, MESSAGE_C_IN, MESSAGE_T_SRV, buf,
-//                RESOLVER_BUF_MAX);
 
 int
 res_query_jps(const char *dname, int class, int type, unsigned char *answer, int anslen){
@@ -395,12 +403,11 @@ res_query_jps(const char *dname, int class, int type, unsigned char *answer, int
   static unsigned char endquery[] = {0,0,1,0,1};
   endquery[2] = (unsigned char) type;
   endquery[4] = (unsigned char) class;
-  ESP_LOGI(TAG, "...appending qtype = %X class %X", endquery[2], endquery[4]);
+
   // write a trailing 0 on qname and write q_type and q_class
   // order is MSB, LSB (network)
   memcpy(query, endquery, 5);
 
-  //pbuf_realloc(p, qname_len + 12 + 5);
   pbuf_realloc(p, sizeof(DNS_HDR) + qname_len + 5);
   udp_send(resolv_pcb, p);
   ESP_LOGI(TAG, "...query sent to DNS server" );
@@ -450,6 +457,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   static u8_t nanswers;
   static u8_t i;
   register DNS_TABLE_ENTRY *pEntry;
+  unsigned char * buf_char_ptr;
   respFlag = 1;
 
   hdr = (DNS_HDR *)p->payload;
@@ -465,75 +473,54 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   // next section if only asking for id 99 - no need to do anything with tables
 
   if(htons(hdr->id) == 99){
-    ESP_LOGI(TAG, "...Work on ID %d", htons(hdr->id));
     payload_len = 12; /*header length*/
-    ESP_LOGI(TAG, "....Header length %d", payload_len);
-    payload_len += get_qname_len(p, (unsigned char *)p->payload + 12); /*qname len*/
-    ESP_LOGI(TAG, "....Header + Alias length %d", payload_len);
+    payload_len += get_qname_len((unsigned char *)p->payload + 12); /*qname len*/
     payload_len += 4; /* Query Type and Query Class*/
-    ESP_LOGI(TAG, "....Header + Alias + query type length %d", payload_len);
     pHostname = p->payload + payload_len; //pHostname now points to the start of the RR
     nanswers = htons(hdr->numanswers);
-    ESP_LOGI(TAG, "....numanswers = %d", nanswers);
-    /*check received buffer by printing out*/
-    char * buf_char_ptr;
-    buf_char_ptr = (char *) p->payload;
-    for (int i=0; i < 88; i++){
-      if ((*buf_char_ptr > 64 && *buf_char_ptr <91) ||
-        (*buf_char_ptr > 96 && *buf_char_ptr <123)){
-        ESP_LOGI(TAG, "....%d Letter in received buffer: %c", i+1, *buf_char_ptr);
-      }
-      else{
-        ESP_LOGI(TAG, "....%d Hex in received buffer   : %X", i+1, *buf_char_ptr);
-      }
-      buf_char_ptr++;
-    } // check printer buffer end
 
     while(nanswers > 0){
       /* The first byte in the answer resource record determines if it
          is a compressed record or a normal one. */
-      if(*pHostname & 0xc0)
-      { /* Compressed name. */
-        printf("Compressed answer\n");
-        pHostname +=2;
-        payload_len += 2; /*2 bytes for flag and offet*/
-        ESP_LOGI(TAG, "....Header + Question + Compressed Name length %d", payload_len);
-      }
-      else
-      {
-        printf("Not Compressed answer\n");
-        payload_len += get_qname_len(p, (unsigned char *)p->payload + payload_len);
-        pHostname += payload_len;
-        ESP_LOGI(TAG, "....Header + Question + UN_Compressed Name length %d", payload_len);
-      }
+
+      int rr_name_len =0; //resource record name length
+      rr_name_len = get_qname_len( (unsigned char *) pHostname);
+      ESP_LOGI(TAG, "....rr_name_len = %d", rr_name_len);
+      payload_len += rr_name_len;
+      pHostname += rr_name_len; //phostname now points to first byte Post Hostname in RR
+
       ans = (DNS_ANSWER *)pHostname;
-      printf("Answer: type %x, class %x, ttl %x, length %x\n",
+      /* printf("Answer: type %x, class %x, ttl %x, length %x\n",
          htons(ans->type), htons(ans->class), (htons(ans->ttl[0])
-           << 16) | htons(ans->ttl[1]), htons(ans->len));
+           << 16) | htons(ans->ttl[1]), htons(ans->len)); */
 
       if((htons(ans->type) == 1) && (htons(ans->class) == 1) && (htons(ans->len) == 4) ){
         payload_len += sizeof(DNS_ANSWER);
         ESP_LOGI(TAG, "....Header + Question + Name + DNS_Answer  length %d", payload_len);
 
-        /*check received buffer by printing out
-        char * buf_char_ptr;
-        buf_char_ptr = (char *) p->payload;
-        for (int i=0; i < payload_len; ++i){
-          if ((*buf_char_ptr > 64 && *buf_char_ptr <91) ||
-            (*buf_char_ptr > 96 && *buf_char_ptr <123)){
-            ESP_LOGI(TAG, "....%d Letter in received buffer: %c", i+1, *buf_char_ptr);
-          }
-          else{
-            ESP_LOGI(TAG, "....%d Hex in received buffer   : %X", i+1, *buf_char_ptr);
-          }
-          buf_char_ptr++;
-        } // check printer buffer end */
+
       }
       else{
         if((htons(ans->type) == 33) && (htons(ans->class) == 1) ){
+          payload_len += (sizeof(DNS_ANSWER) - 4 + htons(ans->len));
           ESP_LOGI(TAG, "....Header + Question + Compressed Name length %d", payload_len);
         }
       }
+
+      /* check received buffer by printing out */
+
+      buf_char_ptr = (unsigned char *) p->payload;
+      for (int i=0; i < payload_len; ++i){
+        if ((*buf_char_ptr > 64 && *buf_char_ptr <91) ||
+          (*buf_char_ptr > 96 && *buf_char_ptr <123)){
+          ESP_LOGI(TAG, "....%d Letter in received buffer: %c", i+1, *buf_char_ptr);
+        }
+        else{
+          ESP_LOGI(TAG, "....%d Hex in received buffer   : %X", i+1, *buf_char_ptr);
+        }
+        buf_char_ptr++;
+      } // check printer buffer end
+
       --nanswers;
     }
     //pHostname = (char *) parse_name((unsigned char *)p->payload + 12) + 4;
