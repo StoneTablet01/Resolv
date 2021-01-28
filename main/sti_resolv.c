@@ -224,21 +224,20 @@ parse_name(unsigned char *query)
 }
 
 /*---------------------------------------------------------------------------
- * parse_qname_length() - Walk through the encoded answer buffer and return
+ * get_qname_len() - Walk through the encoded answer buffer and return
  * the length of the encoded name in chars.
  *---------------------------------------------------------------------------*/
 int
-parse_qname_length(unsigned char *name_ptr){
-  int subname_len;
-  int encoded_name_len =0;
+get_qname_len(struct pbuf *p, unsigned char *name_ptr){
 
-  while(*name_ptr != 0 && encoded_name_len < MAX_NAME_LENGTH - 1){
-    subname_len = (int) *name_ptr; //first item is the length of the first subname
-    encoded_name_len += (subname_len + 1);
-    name_ptr+= (subname_len + 1);
+  int qname_len =0;
+
+  while(*name_ptr != 0 && qname_len < MAX_NAME_LENGTH - 1){
+    qname_len += (*name_ptr + 1);
+    name_ptr+= (*name_ptr + 1);
     }
-  encoded_name_len++;
-  return encoded_name_len;
+  qname_len++;
+  return qname_len;
 }
 
 void
@@ -347,11 +346,12 @@ check_entries(void)
 //len = res_query_jps(fulldomain, MESSAGE_C_IN, MESSAGE_T_SRV, buf,
 //                RESOLVER_BUF_MAX);
 
-int res_query_jps(const char *dname, int class, int type, unsigned char *answer, int anslen){
+int
+res_query_jps(const char *dname, int class, int type, unsigned char *answer, int anslen){
   static const char *TAG = "res_query_jps";
   ESP_LOGI(TAG, "");
   ESP_LOGI(TAG, ".Begin res_query_jps function");
-  //int i = 99;
+
   static u8_t n;
   DNS_HDR *hdr;
   struct pbuf *p;
@@ -467,11 +467,14 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   if(htons(hdr->id) == 99){
     ESP_LOGI(TAG, "...Work on ID %d", htons(hdr->id));
     payload_len = 12; /*header length*/
-    payload_len += parse_qname_length((unsigned char *)p->payload + 12); /*qname len*/
+    ESP_LOGI(TAG, "....Header length %d", payload_len);
+    payload_len += get_qname_len(p, (unsigned char *)p->payload + 12); /*qname len*/
+    ESP_LOGI(TAG, "....Header + Alias length %d", payload_len);
     payload_len += 4; /* Query Type and Query Class*/
+    ESP_LOGI(TAG, "....Header + Alias + query type length %d", payload_len);
     pHostname = p->payload + payload_len; //pHostname now points to the start of the RR
     nanswers = htons(hdr->numanswers);
-
+    ESP_LOGI(TAG, "....numanswers = %d", nanswers);
     /*check received buffer by printing out*/
     char * buf_char_ptr;
     buf_char_ptr = (char *) p->payload;
@@ -491,15 +494,17 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
          is a compressed record or a normal one. */
       if(*pHostname & 0xc0)
       { /* Compressed name. */
+        printf("Compressed answer\n");
         pHostname +=2;
         payload_len += 2; /*2 bytes for flag and offet*/
-        /* printf("Compressed answer\n");*/
+        ESP_LOGI(TAG, "....Header + Question + Compressed Name length %d", payload_len);
       }
       else
       {
-        /* printf("Not Compressed answer\n"); */
-        payload_len += parse_qname_length((unsigned char *)p->payload + payload_len);
+        printf("Not Compressed answer\n");
+        payload_len += get_qname_len(p, (unsigned char *)p->payload + payload_len);
         pHostname += payload_len;
+        ESP_LOGI(TAG, "....Header + Question + UN_Compressed Name length %d", payload_len);
       }
       ans = (DNS_ANSWER *)pHostname;
       printf("Answer: type %x, class %x, ttl %x, length %x\n",
@@ -508,6 +513,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
 
       if((htons(ans->type) == 1) && (htons(ans->class) == 1) && (htons(ans->len) == 4) ){
         payload_len += sizeof(DNS_ANSWER);
+        ESP_LOGI(TAG, "....Header + Question + Name + DNS_Answer  length %d", payload_len);
 
         /*check received buffer by printing out
         char * buf_char_ptr;
@@ -522,6 +528,11 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
           }
           buf_char_ptr++;
         } // check printer buffer end */
+      }
+      else{
+        if((htons(ans->type) == 33) && (htons(ans->class) == 1) ){
+          ESP_LOGI(TAG, "....Header + Question + Compressed Name length %d", payload_len);
+        }
       }
       --nanswers;
     }
