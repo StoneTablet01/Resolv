@@ -190,7 +190,7 @@ static struct ip4_addr serverIP; /**<the adress of the DNS server to use */
 static u8_t initFlag; /**< set to 1 if initialized*/
 static u8_t respFlag = 0; /**< set to 1 if responce received*/
 static u8_t payload_len = 0; /**< length of the received payload buffer*/
-static void* pay_buf;
+static unsigned char * user_buffer_ptr;
 
 //sti Test Line follows
 struct ip_addr ipaddr1;
@@ -369,8 +369,6 @@ check_entries(void)
  * makes preliminary checks on the reply. The query requests information of the
  * specified type and class for the specified fully-qualified domain name dname.
  * The reply message is left in the answer buffer
- *
- *
  */
 
 int
@@ -389,8 +387,10 @@ res_query_jps(const char *dname, int class, int type, unsigned char *answer, int
   hdr = (DNS_HDR *)p->payload;
   memset(hdr, 0, sizeof(DNS_HDR));
 
-  /* Fill in header information observing Big Endian / Little Endian considerations*/
+  // make start of answer header globally available
+  user_buffer_ptr = answer;
 
+  /* Fill in header information observing Big Endian / Little Endian considerations*/
   hdr->id = htons(99);
   hdr->flags1 = DNS_FLAG1_RD; //This is 8bits so no need to worry about htons
   hdr->numquestions = htons(1);
@@ -417,21 +417,20 @@ res_query_jps(const char *dname, int class, int type, unsigned char *answer, int
   }
   while(*pHostname != 0);
 
-  // complete the question by (1) terminating the QNAME with a 0, (2) specifying
+  // complete the question by (1) terminating the QNAME with 0, (2) specifying
   // QTYPE and (3) specifying QCLASS
   static unsigned char endquery[] = {0,0,1,0,1};
   endquery[2] = (unsigned char) type;
   endquery[4] = (unsigned char) class;
 
-  // write a trailing 0 on qname and write q_type and q_class
-  // order is MSB, LSB (network)
   memcpy(query, endquery, 5);
 
   pbuf_realloc(p, sizeof(DNS_HDR) + qname_len + 5);
+  respFlag = 0; //clear responce flag. It will be set to 1 when buffer received
+
   udp_send(resolv_pcb, p);
   ESP_LOGI(TAG, "...query sent to DNS server" );
-  //pbuf_free(p);
-  //ESP_LOGI(TAG, "...resp flag = %d", respFlag);
+  pbuf_free(p);
 
   for (int time =0; time < 10; time++){
     vTaskDelay(200 / portTICK_PERIOD_MS);
@@ -443,13 +442,8 @@ res_query_jps(const char *dname, int class, int type, unsigned char *answer, int
     return 0;
   }
 
-  //ESP_LOGI(TAG, "...resp flag = %d", respFlag);
-  ESP_LOGI(TAG, "...payload length = %d", payload_len);
-  //ESP_LOGI(TAG, "...Now memcpy data");
-  memcpy(answer, pay_buf, payload_len);
-  //ESP_LOGI(TAG, "...Now memcpy completed");
-  pbuf_free(p);
-  //ESP_LOGI(TAG, "...pbuf freed");
+  ESP_LOGI(TAG, "...payload length from parse = %d", payload_len);
+
   return payload_len;
 }
 
@@ -526,7 +520,8 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
       }
       --nanswers;
     }
-    pay_buf = p->payload;
+    memcpy(user_buffer_ptr, p->payload, payload_len);
+    free(p);
     return;
   }
 
