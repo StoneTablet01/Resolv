@@ -430,7 +430,7 @@ res_query_jps(const char *dname, int class, int type, unsigned char *answer, int
   pbuf_realloc(p, sizeof(DNS_HDR) + qname_len + 5);
   udp_send(resolv_pcb, p);
   ESP_LOGI(TAG, "...query sent to DNS server" );
-  pbuf_free(p);
+  //pbuf_free(p);
   //ESP_LOGI(TAG, "...resp flag = %d", respFlag);
 
   for (int time =0; time < 10; time++){
@@ -448,7 +448,7 @@ res_query_jps(const char *dname, int class, int type, unsigned char *answer, int
   //ESP_LOGI(TAG, "...Now memcpy data");
   memcpy(answer, pay_buf, payload_len);
   //ESP_LOGI(TAG, "...Now memcpy completed");
-  //pbuf_free(p);
+  pbuf_free(p);
   //ESP_LOGI(TAG, "...pbuf freed");
   return payload_len;
 }
@@ -477,7 +477,7 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   //unsigned char * buf_char_ptr;
   respFlag = 1;
 
-  //ESP_LOGI(TAG, "....Buffer length from tot_len is %d", p->len);
+  ESP_LOGI(TAG, "....Buffer length from tot_len is %d", p->len);
 
   hdr = (DNS_HDR *)p->payload;
   ESP_LOGI(TAG, "...ID %d", htons(hdr->id));

@@ -274,11 +274,11 @@ void wifi_init_sta(void)
 
     /* Message class is Internet */
     /* Message Type request is for type A DNS record*/
-    res = res_query_jps(full_hostname, MESSAGE_C_IN, MESSAGE_T_A, an, anslen);
-    ESP_LOGI(TAG, "...length of returned buffer is %d", res);
-    print_buf(an,res);
+    //res = res_query_jps(full_hostname, MESSAGE_C_IN, MESSAGE_T_A, an, anslen);
+    //ESP_LOGI(TAG, "...length of returned buffer is %d", res);
+    //print_buf(an,res);
     ESP_LOGI(TAG, "...End res_query_jps for type A records");
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
 
     // Now try for an SRV record
 
