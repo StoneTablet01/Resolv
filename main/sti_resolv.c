@@ -477,6 +477,8 @@ resolv_recv(void *s, struct udp_pcb *pcb, struct pbuf *p,
   //unsigned char * buf_char_ptr;
   respFlag = 1;
 
+  //ESP_LOGI(TAG, "....Buffer length from tot_len is %d", p->len);
+
   hdr = (DNS_HDR *)p->payload;
   ESP_LOGI(TAG, "...ID %d", htons(hdr->id));
   ESP_LOGI(TAG, "...Query %d", hdr->flags1 & DNS_FLAG1_RESPONSE);
